@@ -10,6 +10,7 @@ from ....database.connection import get_db
 from ....services.document_processing_service import DocumentProcessingService
 from ....services.upload_session_service import UploadSessionService
 from ....schemas.document import ErrorResponse
+from ....tasks.document_processing_tasks import process_document_pipeline_task, retry_document_processing_task
 
 router = APIRouter(prefix="/documents/processing", tags=["document_processing"])
 
@@ -47,17 +48,14 @@ async def start_document_processing(
                 detail=f"Invalid upload session status: {upload_session.status}"
             )
         
-        # 백그라운드에서 문서 처리 파이프라인 시작
-        processing_service = DocumentProcessingService(db)
-        background_tasks.add_task(
-            processing_service.process_document_pipeline,
-            upload_id
-        )
+        # Celery 태스크로 문서 처리 파이프라인 시작
+        task = process_document_pipeline_task.delay(upload_id)
         
         return {
             "message": "Document processing started",
             "upload_id": upload_id,
-            "status": "processing"
+            "status": "processing",
+            "task_id": task.id
         }
         
     except HTTPException:
@@ -133,17 +131,14 @@ async def retry_document_processing(
             error_message=None
         )
         
-        # 백그라운드에서 문서 처리 파이프라인 재시작
-        processing_service = DocumentProcessingService(db)
-        background_tasks.add_task(
-            processing_service.process_document_pipeline,
-            upload_id
-        )
+        # Celery 태스크로 문서 처리 파이프라인 재시작
+        task = retry_document_processing_task.delay(upload_id)
         
         return {
             "message": "Document processing retry started",
             "upload_id": upload_id,
-            "status": "pending"
+            "status": "pending",
+            "task_id": task.id
         }
         
     except HTTPException:

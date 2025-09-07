@@ -101,6 +101,78 @@ services:
       - company-on-network
     restart: unless-stopped
 
+  # Celery 워커
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: company-on-celery-worker
+    command: celery -A app.celery_app worker --loglevel=info --queues=document_processing,chat_processing,default
+    environment:
+      - DATABASE_URL=postgresql://ragbot_user:ragbot_password@postgres:5432/ragbot
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET_NAME=company-on-documents
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    volumes:
+      - ./backend:/app
+    networks:
+      - company-on-network
+    restart: unless-stopped
+
+  # Celery Beat (주기적 작업 스케줄러)
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: company-on-celery-beat
+    command: celery -A app.celery_app beat --loglevel=info
+    environment:
+      - DATABASE_URL=postgresql://ragbot_user:ragbot_password@postgres:5432/ragbot
+      - REDIS_URL=redis://redis:6379/0
+      - MINIO_ENDPOINT=minio:9000
+      - MINIO_ACCESS_KEY=minioadmin
+      - MINIO_SECRET_KEY=minioadmin
+      - MINIO_BUCKET_NAME=company-on-documents
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    depends_on:
+      - postgres
+      - redis
+      - minio
+    volumes:
+      - ./backend:/app
+    networks:
+      - company-on-network
+    restart: unless-stopped
+
+  # Celery Flower (모니터링 도구)
+  celery-flower:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: company-on-celery-flower
+    command: celery -A app.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    environment:
+      - DATABASE_URL=postgresql://ragbot_user:ragbot_password@postgres:5432/ragbot
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+      - celery-worker
+    volumes:
+      - ./backend:/app
+    networks:
+      - company-on-network
+    restart: unless-stopped
+
 volumes:
   postgres_data:
     driver: local

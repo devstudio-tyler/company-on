@@ -36,3 +36,9 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def get_db_url():
+    """
+    데이터베이스 URL 반환 함수 (Celery 태스크용)
+    """
+    return DATABASE_URL

@@ -2,7 +2,7 @@
 API v1 라우터 통합
 """
 from fastapi import APIRouter
-from .routers import documents, upload_status
+from .routers import documents, upload_status, chat_sessions, chat_messages
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -11,3 +11,9 @@ api_router.include_router(documents.router)
 
 # 업로드 상태 추적 라우터 등록
 api_router.include_router(upload_status.router)
+
+# 채팅 세션 라우터 등록
+api_router.include_router(chat_sessions.router)
+
+# 채팅 메시지 라우터 등록
+api_router.include_router(chat_messages.router)

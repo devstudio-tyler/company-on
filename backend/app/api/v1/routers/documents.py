@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from ....database.connection import get_db
 from ....services.document_service import DocumentService
 from ....services.minio_service import minio_service
+from ....services.upload_session_service import UploadSessionService
+from ....services.sse_service import sse_service
 from ....schemas.document import (
     DocumentUploadInitRequest,
     DocumentUploadInitResponse,
@@ -21,6 +23,7 @@ from ....schemas.document import (
     DocumentStatus,
     ErrorResponse
 )
+from ....schemas.upload_session import UploadStatus
 import logging
 
 logger = logging.getLogger(__name__)
@@ -36,13 +39,22 @@ async def init_document_upload(
     """
     문서 업로드 시작 (Init)
     
-    파일 업로드를 위한 사전 서명된 URL을 생성합니다.
+    파일 업로드를 위한 사전 서명된 URL을 생성하고 업로드 세션을 생성합니다.
     """
     try:
         # MinIO에서 업로드 URL 생성
         upload_id, upload_url = minio_service.generate_upload_url(
             filename=request.filename,
             expires_minutes=60
+        )
+        
+        # 업로드 세션 생성
+        upload_service = UploadSessionService(db)
+        upload_service.create_upload_session(
+            upload_id=upload_id,
+            filename=request.filename,
+            file_size=request.size,
+            content_type=request.content_type
         )
         
         # 만료 시간 계산 (현재 시간 + 60분)
@@ -77,10 +89,22 @@ async def commit_document_upload(
     업로드된 파일을 데이터베이스에 등록하고 처리 작업을 시작합니다.
     """
     try:
+        # 업로드 세션 확인
+        upload_service = UploadSessionService(db)
+        upload_session = upload_service.get_upload_session(upload_id)
+        
+        if not upload_session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Upload session not found"
+            )
+        
         # MinIO에서 파일 정보 확인
-        file_path = f"uploads/{upload_id}/{request.metadata.get('filename', 'unknown')}"
+        file_path = f"uploads/{upload_id}/{upload_session.filename}"
         
         if not minio_service.file_exists(file_path):
+            # 업로드 실패 처리
+            upload_service.fail_upload(upload_id, "Uploaded file not found")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Uploaded file not found"
@@ -89,18 +113,19 @@ async def commit_document_upload(
         # 문서 서비스로 문서 생성
         document_service = DocumentService(db)
         
-        # 메타데이터에서 파일 정보 추출
-        filename = request.metadata.get('filename', 'unknown')
-        file_size = request.metadata.get('size', 0)
-        content_type = request.metadata.get('content_type', 'application/octet-stream')
-        
         document = document_service.create_document(
-            filename=filename,
-            file_size=file_size,
-            content_type=content_type,
+            filename=upload_session.filename,
+            file_size=upload_session.file_size,
+            content_type=upload_session.content_type,
             file_path=file_path,
             metadata=request.metadata
         )
+        
+        # 업로드 세션 완료 처리
+        upload_service.complete_upload(upload_id, document.id)
+        
+        # SSE로 상태 변경 알림
+        await sse_service.broadcast_upload_status_change(upload_id, UploadStatus.PENDING)
         
         logger.info(f"Document uploaded and registered: {document.id}")
         
@@ -113,6 +138,8 @@ async def commit_document_upload(
         raise
     except Exception as e:
         logger.error(f"Failed to commit document upload: {e}")
+        # 업로드 실패 처리
+        upload_service.fail_upload(upload_id, str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to commit document upload"

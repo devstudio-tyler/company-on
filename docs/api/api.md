@@ -6,6 +6,13 @@ Company-on은 RAG 기반 AI 챗봇을 위한 문서 관리 및 채팅 시스템�
 
 **Base URL**: `http://localhost:8000/api/v1`
 
+**주요 기능**:
+- 📄 문서 관리 (업로드, 다운로드, 삭제, 재처리)
+- 📊 실시간 업로드 상태 추적 (SSE)
+- 💬 개인화된 채팅 세션 관리 (client_id 기반)
+- 🔄 백그라운드 문서 처리 파이프라인 (Celery)
+- 🎯 벡터 임베딩 및 검색 시스템
+
 ---
 
 ## 🔧 문서 관리 API
@@ -306,6 +313,93 @@ curl -X DELETE "http://localhost:8000/api/v1/documents/1"
 #### 사용 예제
 ```bash
 curl "http://localhost:8000/api/v1/documents/1/chunks"
+```
+
+---
+
+## 🔄 문서 처리 파이프라인 API
+
+### 1. 문서 처리 시작
+
+**POST** `/documents/processing/start/{upload_id}`
+
+문서 처리 파이프라인을 시작합니다. 백그라운드에서 텍스트 추출, 청킹, 임베딩 생성이 진행됩니다.
+
+#### 경로 매개변수
+- `upload_id` (string): 업로드 세션 ID
+
+#### 응답
+```json
+{
+  "message": "Document processing started",
+  "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "processing",
+  "task_id": "celery-task-id-123"
+}
+```
+
+#### 예제
+```bash
+curl -X POST "http://localhost:8000/api/v1/documents/processing/start/550e8400-e29b-41d4-a716-446655440000"
+```
+
+### 2. 처리 상태 조회
+
+**GET** `/documents/processing/status/{upload_id}`
+
+문서 처리 상태를 조회합니다.
+
+#### 경로 매개변수
+- `upload_id` (string): 업로드 세션 ID
+
+#### 응답
+```json
+{
+  "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "processing",
+  "document_id": 1,
+  "error_message": null,
+  "created_at": "2024-01-15T10:30:00Z",
+  "updated_at": "2024-01-15T10:35:00Z"
+}
+```
+
+### 3. 처리 재시도
+
+**POST** `/documents/processing/retry/{upload_id}`
+
+실패한 문서 처리를 재시도합니다.
+
+#### 경로 매개변수
+- `upload_id` (string): 업로드 세션 ID
+
+#### 응답
+```json
+{
+  "message": "Document processing retry started",
+  "upload_id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "pending",
+  "task_id": "celery-task-id-456"
+}
+```
+
+### 4. 처리 통계 조회
+
+**GET** `/documents/processing/stats`
+
+문서 처리 통계를 조회합니다.
+
+#### 응답
+```json
+{
+  "processing_statistics": {
+    "pending": 2,
+    "processing": 1,
+    "completed": 15,
+    "failed": 1
+  },
+  "total_sessions": 19
+}
 ```
 
 ---

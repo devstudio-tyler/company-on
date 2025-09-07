@@ -5,6 +5,8 @@
 - 모든 서비스가 Docker로 정상 기동
 - 데이터베이스 스키마 생성 완료
 - 개발 도구 및 환경 설정 완료
+- **Celery 백그라운드 워커 설정 완료** ✅
+- **문서 처리 파이프라인 자동화** ✅
 
 ---
 
@@ -403,13 +405,20 @@ docker-compose ps
 
 # 로그 확인
 docker-compose logs backend
-docker-compose logs frontend
+docker-compose logs celery-worker
+docker-compose logs celery-beat
 
 # 데이터베이스 연결 테스트
 docker-compose exec postgres psql -U ragbot_user -d ragbot -c "\dt"
 
 # API 테스트
 curl http://localhost:8000/health
+
+# Celery 워커 상태 확인
+curl http://localhost:5555/api/workers
+
+# 문서 처리 파이프라인 테스트
+curl -X POST "http://localhost:8000/api/v1/documents/processing/stats"
 ```
 
 ---

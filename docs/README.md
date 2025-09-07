@@ -1,4 +1,4 @@
-ㄷ# Company-on 문서 센터
+# Company-on 문서 센터
 
 이 디렉토리는 Company-on 프로젝트의 모든 문서를 체계적으로 관리합니다.
 
@@ -20,6 +20,7 @@ API 사용법 및 개발자 가이드
 ### 📚 [studies/](./studies/)
 기술 학습 및 개념 설명 자료
 - `database-concepts-explanation.md` - 데이터베이스 개념 설명
+- `celery-explanation.md` - Celery 백그라운드 작업 큐 학습 가이드
 
 ### 📖 [manuals/](./manuals/)
 확장 기능 및 고급 사용법 가이드
@@ -28,6 +29,10 @@ API 사용법 및 개발자 가이드
 ### 📄 [references/](./references/)
 참고 자료 및 외부 문서
 - `Vibers AI 개발자 과제 안내.pdf` - 과제 요구사항 문서
+
+### 📊 [report/](./report/)
+프로젝트 진행 상황 및 시간 보고서
+- `time_report.md` - 작업 수행 워크플로우 및 시간 추적
 
 ## 🚀 빠른 시작
 

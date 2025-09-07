@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🚀 데이터베이스 초기화 시작..."
+echo "🚀 Company-on 데이터베이스 초기화 시작..."
 
 # pgvector 확장 설치
 echo "📦 pgvector 확장 설치 중..."
@@ -14,5 +14,5 @@ psql -U ragbot_user -d ragbot -c "
 SELECT 'Database initialized successfully' as status;
 "
 
-echo "✅ 데이터베이스 초기화 완료!"
+echo "✅ Company-on 데이터베이스 초기화 완료!"
 

@@ -225,3 +225,14 @@ class UploadSessionService:
         
         logger.info(f"Upload session deleted: {upload_id}")
         return True
+    
+    def get_processing_statistics(self) -> dict:
+        """처리 통계 조회"""
+        from sqlalchemy import func
+        
+        stats = self.db.query(
+            UploadSession.status,
+            func.count(UploadSession.id).label('count')
+        ).group_by(UploadSession.status).all()
+        
+        return {stat.status: stat.count for stat in stats}

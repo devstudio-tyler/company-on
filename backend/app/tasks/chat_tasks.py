@@ -10,7 +10,7 @@ from sqlalchemy import create_engine
 from ..database.connection import get_db_url
 from ..services.chat_session_service import ChatSessionService
 from ..services.embedding_service import EmbeddingService
-from .celery_app import celery_app
+from ..celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 

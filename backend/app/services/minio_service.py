@@ -19,7 +19,7 @@ class MinIOService:
         self.client = Minio(
             endpoint=os.getenv("MINIO_ENDPOINT", "localhost:9000"),
             access_key=os.getenv("MINIO_ACCESS_KEY", "minioadmin"),
-            secret_key=os.getenv("MINIO_SECRET_KEY", "minioadmin123"),
+            secret_key=os.getenv("MINIO_SECRET_KEY", "minioadmin"),
             secure=False  # 개발 환경에서는 HTTP 사용
         )
         self.bucket_name = "company-on-documents"
@@ -35,7 +35,7 @@ class MinIOService:
             logger.error(f"Failed to create bucket: {e}")
             raise
     
-    def generate_upload_url(self, filename: str, expires_minutes: int = 60) -> tuple[str, str]:
+    def generate_upload_url(self, filename: str, expires_minutes: int = 30) -> tuple[str, str]:
         """
         파일 업로드를 위한 사전 서명된 URL 생성
         
@@ -60,7 +60,7 @@ class MinIOService:
             logger.error(f"Failed to generate upload URL: {e}")
             raise
     
-    def get_file_url(self, file_path: str, expires_minutes: int = 60) -> str:
+    def get_file_url(self, file_path: str, expires_minutes: int = 30) -> str:
         """
         파일 다운로드를 위한 사전 서명된 URL 생성
         

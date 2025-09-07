@@ -11,7 +11,7 @@ from sqlalchemy import create_engine
 from ..database.connection import get_db_url
 from ..services.document_processing_service import DocumentProcessingService
 from ..services.sse_service import sse_service
-from .celery_app import celery_app
+from ..celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 

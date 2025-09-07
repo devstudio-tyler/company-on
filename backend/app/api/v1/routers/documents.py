@@ -58,8 +58,8 @@ async def init_document_upload(
         )
         
         # 만료 시간 계산 (현재 시간 + 60분)
-        expires_at = datetime.utcnow().replace(microsecond=0)
-        expires_at = expires_at.replace(minute=expires_at.minute + 60)
+        from datetime import timedelta
+        expires_at = datetime.utcnow().replace(microsecond=0) + timedelta(minutes=60)
         
         logger.info(f"Upload URL generated for: {request.filename}")
         

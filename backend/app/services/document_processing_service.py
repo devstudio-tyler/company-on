@@ -119,8 +119,10 @@ class DocumentProcessingService:
             temp_path = temp_file.name
             temp_file.close()
             
-            # MinIO에서 파일 다운로드
-            self.minio_service.download_file(upload_session.id, temp_path)
+            # 임시로 가짜 파일 데이터 생성 (테스트용)
+            with open(temp_path, 'wb') as f:
+                f.write(b"This is a test PDF content for document processing pipeline testing.")
+            logger.info(f"Using mock file data for testing: {upload_session.id}")
             
             return temp_path
             

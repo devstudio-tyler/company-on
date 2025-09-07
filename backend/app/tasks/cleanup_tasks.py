@@ -8,7 +8,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy import create_engine, and_
 
 from ..database.connection import get_db_url
-from .celery_app import celery_app
+from ..celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 

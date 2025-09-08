@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import ChatList, { type ChatMessageData } from './ChatList';
 import ChatInput from './ChatInput';
 import { getClientId } from '@/lib/utils';
@@ -139,14 +140,17 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
                 // 텍스트 청크 업데이트 (디버깅 로그 추가)
                 console.log('🔥 실시간 청크 수신:', parsed.content);
                 
-                // 즉시 상태 업데이트 (React 배칭 방지)
-                setMessages(prev => {
-                  const updated = prev.map(msg => 
-                    msg.id === aiMessageId 
-                      ? { ...msg, content: msg.content + parsed.content }
-                      : msg
-                  );
-                  return updated;
+                // 즉시 상태 업데이트 (React 배칭 방지 - flushSync 사용)
+                flushSync(() => {
+                  setMessages(prev => {
+                    const updated = prev.map(msg => 
+                      msg.id === aiMessageId 
+                        ? { ...msg, content: msg.content + parsed.content }
+                        : msg
+                    );
+                    // 강제 리렌더링을 위한 새 배열 반환
+                    return [...updated];
+                  });
                 });
                 
                 // 스크롤을 맨 아래로 (실시간 스크롤)

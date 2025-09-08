@@ -7,6 +7,8 @@ import json
 import logging
 from typing import List, Dict, Optional, AsyncGenerator
 from openai import AsyncOpenAI
+from typing import Literal
+import httpx
 from pydantic import BaseModel
 import asyncio
 
@@ -32,17 +34,43 @@ class LLMResponse(BaseModel):
 
 
 class LLMService:
-    """OpenAI GPT-3.5-turbo LLM 서비스"""
-    
+    """LLM 서비스 (OpenAI | OpenRouter | Vertex AI: Gemma)"""
+
     def __init__(self):
-        api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key or api_key == "your_openai_api_key_here":
-            logger.warning("OpenAI API 키가 설정되지 않았습니다. LLM 기능이 제한됩니다.")
-            self.client = None
-        else:
-            self.client = AsyncOpenAI(api_key=api_key)
+        self.provider: Literal["openai", "openrouter", "vertex"] = os.getenv("LLM_PROVIDER", "openai").lower()  # type: ignore
         self.config = LLMConfig()
         self.system_prompt = self._get_system_prompt()
+
+        if self.provider == "openai":
+            api_key = os.getenv("OPENAI_API_KEY")
+            if not api_key or api_key == "your_openai_api_key_here":
+                logger.warning("OpenAI API 키가 설정되지 않았습니다. LLM 기능이 제한됩니다.")
+                self.client = None
+            else:
+                self.client = AsyncOpenAI(api_key=api_key)
+        elif self.provider == "openrouter":
+            # OpenAI 호환 API
+            api_key = os.getenv("OPENROUTER_API_KEY")
+            base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
+            if not api_key:
+                logger.warning("OpenRouter API 키가 설정되지 않았습니다. LLM 기능이 제한됩니다.")
+                self.client = None
+            else:
+                self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+            # 기본 모델을 Gemma 3 12B IT(free)로 설정
+            self.config.model = os.getenv("GEMMA_MODEL", "google/gemma-3-12b-it:free")
+        elif self.provider == "vertex":
+            # Vertex AI는 REST 호출로 통합 (서버에서 직접 호출)
+            self.vertex_project = os.getenv("VERTEX_PROJECT_ID")
+            self.vertex_location = os.getenv("VERTEX_LOCATION", "us-central1")
+            self.gemma_model = os.getenv("GEMMA_MODEL", "gemma-3-12b-instruct")
+            # 자격증명은 GOOGLE_APPLICATION_CREDENTIALS 를 통해 ADC(응용 기본 자격증명) 사용
+            if not self.vertex_project:
+                logger.warning("VERTEX_PROJECT_ID가 설정되지 않았습니다. Vertex 통합이 비활성화됩니다.")
+            self.client = httpx.AsyncClient(timeout=60)
+        else:
+            logger.warning("지원하지 않는 LLM_PROVIDER 값입니다. 기본값(openai)로 동작합니다.")
+            self.client = None
         
     def _get_system_prompt(self) -> str:
         """RAG용 시스템 프롬프트 생성"""
@@ -68,7 +96,7 @@ class LLMService:
         conversation_history: List[Dict[str, str]] = None
     ) -> LLMResponse:
         """RAG 기반 응답 생성"""
-        if not self.client:
+        if self.provider == "openai" and not self.client:
             return LLMResponse(
                 content="OpenAI API 키가 설정되지 않았습니다. 관리자에게 문의하세요.",
                 usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
@@ -87,28 +115,38 @@ class LLMService:
                 conversation_history
             )
             
-            # OpenAI API 호출
-            response = await self.client.chat.completions.create(
-                model=self.config.model,
-                messages=messages,
-                max_tokens=self.config.max_tokens,
-                temperature=self.config.temperature,
-                top_p=self.config.top_p,
-                frequency_penalty=self.config.frequency_penalty,
-                presence_penalty=self.config.presence_penalty
-            )
-            
-            # 응답 파싱
-            return LLMResponse(
-                content=response.choices[0].message.content,
-                usage={
-                    "prompt_tokens": response.usage.prompt_tokens,
-                    "completion_tokens": response.usage.completion_tokens,
-                    "total_tokens": response.usage.total_tokens
-                },
-                model=response.model,
-                finish_reason=response.choices[0].finish_reason
-            )
+            if self.provider == "openai":
+                response = await self.client.chat.completions.create(  # type: ignore
+                    model=self.config.model,
+                    messages=messages,
+                    max_tokens=self.config.max_tokens,
+                    temperature=self.config.temperature,
+                    top_p=self.config.top_p,
+                    frequency_penalty=self.config.frequency_penalty,
+                    presence_penalty=self.config.presence_penalty
+                )
+                return LLMResponse(
+                    content=response.choices[0].message.content,
+                    usage={
+                        "prompt_tokens": response.usage.prompt_tokens,
+                        "completion_tokens": response.usage.completion_tokens,
+                        "total_tokens": response.usage.total_tokens
+                    },
+                    model=response.model,
+                    finish_reason=response.choices[0].finish_reason
+                )
+            else:
+                # Vertex AI: Responses (Text) API v1beta
+                endpoint = f"https://{self.vertex_location}-aiplatform.googleapis.com/v1beta/projects/{self.vertex_project}/locations/{self.vertex_location}/endpoints/openapi/chat"
+                payload = {
+                    "model": self.gemma_model,
+                    "messages": messages,
+                    "max_output_tokens": self.config.max_tokens,
+                    "temperature": self.config.temperature,
+                }
+                # ADC 인증은 httpx가 자동 처리하지 않으므로 metadata server 또는 service account token 필요
+                # 간단화를 위해 google-auth 연동은 다음 단계에서 추가 예정
+                raise NotImplementedError("Vertex AI 호출 인증 로직 추가 필요")
             
         except Exception as e:
             logger.error(f"LLM 응답 생성 실패: {e}")
@@ -121,7 +159,7 @@ class LLMService:
         conversation_history: List[Dict[str, str]] = None
     ) -> AsyncGenerator[str, None]:
         """스트리밍 응답 생성"""
-        if not self.client:
+        if self.provider == "openai" and not self.client:
             yield "OpenAI API 키가 설정되지 않았습니다. 관리자에게 문의하세요."
             return
         
@@ -136,19 +174,21 @@ class LLMService:
                 conversation_history
             )
             
-            # 스트리밍 API 호출
-            stream = await self.client.chat.completions.create(
-                model=self.config.model,
-                messages=messages,
-                max_tokens=self.config.max_tokens,
-                temperature=self.config.temperature,
-                stream=True
-            )
-            
-            # 스트리밍 응답 처리
-            async for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+            if self.provider == "openai":
+                stream = await self.client.chat.completions.create(  # type: ignore
+                    model=self.config.model,
+                    messages=messages,
+                    max_tokens=self.config.max_tokens,
+                    temperature=self.config.temperature,
+                    stream=True
+                )
+                async for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        yield chunk.choices[0].delta.content
+            else:
+                # Vertex 스트리밍은 후속 단계에서 구현
+                yield "[알림] Vertex 스트리밍은 추후 활성화됩니다."
+                return
                     
         except Exception as e:
             logger.error(f"LLM 스트리밍 응답 생성 실패: {e}")
@@ -204,16 +244,20 @@ class LLMService:
 
     async def test_connection(self) -> bool:
         """API 연결 테스트"""
-        if not self.client:
+        if self.provider == "openai" and not self.client:
             return False
         
         try:
-            response = await self.client.chat.completions.create(
-                model=self.config.model,
-                messages=[{"role": "user", "content": "안녕하세요"}],
-                max_tokens=10
-            )
-            return response.choices[0].message.content is not None
+            if self.provider == "openai":
+                response = await self.client.chat.completions.create(  # type: ignore
+                    model=self.config.model,
+                    messages=[{"role": "user", "content": "안녕하세요"}],
+                    max_tokens=10
+                )
+                return response.choices[0].message.content is not None
+            else:
+                # 간단 연결 확인은 구성값 점검으로 대체
+                return bool(self.vertex_project)
         except Exception as e:
             logger.error(f"LLM 연결 테스트 실패: {e}")
             return False

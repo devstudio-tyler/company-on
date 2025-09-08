@@ -16,6 +16,9 @@ pydantic==2.5.0
 pydantic-settings==2.1.0
 python-dotenv==1.0.0
 httpx==0.25.2
+# Vertex AI / Google Cloud
+google-cloud-aiplatform==1.66.0
+google-auth==2.34.0
 # 문서 처리 라이브러리
 PyPDF2==3.0.1
 python-docx==1.1.0

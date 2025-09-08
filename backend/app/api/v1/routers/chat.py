@@ -142,6 +142,9 @@ async def create_chat_message_stream(
                     if chunk:  # 빈 청크 건너뛰기
                         full_response += chunk
                         yield f"data: {json.dumps({'content': chunk, 'type': 'chunk'})}\n\n"
+                        
+                        # 타이핑 효과를 위한 작은 지연 추가
+                        await asyncio.sleep(0.01)
                 
                 # 3. 완료된 응답 저장
                 ai_message = ChatMessage(

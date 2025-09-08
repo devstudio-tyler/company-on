@@ -49,7 +49,7 @@ export default function ChatList({ messages, isLoading = false, onFeedback }: Ch
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto" data-chat-list>
       <div className="max-w-3xl mx-auto">
         {messages.map((message) => (
           <ChatMessage

@@ -105,9 +105,14 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
 
       while (true) {
         const { value, done } = await reader.read();
-        if (done) break;
+        if (done) {
+          console.log('📡 스트림 읽기 완료');
+          break;
+        }
 
-        buffer += decoder.decode(value, { stream: true });
+        const chunk = decoder.decode(value, { stream: true });
+        console.log('📡 원시 청크 수신:', chunk);
+        buffer += chunk;
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
 
@@ -131,14 +136,26 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
               const parsed = JSON.parse(data);
               
               if (parsed.type === 'chunk') {
-                // 텍스트 청크 업데이트
-                setMessages(prev => 
-                  prev.map(msg => 
+                // 텍스트 청크 업데이트 (디버깅 로그 추가)
+                console.log('🔥 실시간 청크 수신:', parsed.content);
+                
+                // 즉시 상태 업데이트 (React 배칭 방지)
+                setMessages(prev => {
+                  const updated = prev.map(msg => 
                     msg.id === aiMessageId 
                       ? { ...msg, content: msg.content + parsed.content }
                       : msg
-                  )
-                );
+                  );
+                  return updated;
+                });
+                
+                // 스크롤을 맨 아래로 (실시간 스크롤)
+                setTimeout(() => {
+                  const chatContainer = document.querySelector('[data-chat-list]');
+                  if (chatContainer) {
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                  }
+                }, 0);
               } else if (parsed.type === 'sources') {
                 // 출처 정보 업데이트
                 setMessages(prev => 

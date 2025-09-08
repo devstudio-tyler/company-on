@@ -15,6 +15,13 @@ class ChatMessageRole(str, Enum):
     SYSTEM = "system"
 
 
+class FeedbackType(str, Enum):
+    """피드백 타입"""
+    UP = "up"
+    DOWN = "down"
+    NONE = "none"
+
+
 class ChatMessageRequest(BaseModel):
     """채팅 메시지 요청"""
     content: str
@@ -102,6 +109,21 @@ class ChatMessageListResponse(BaseModel):
     total: int
     page: int
     size: int
+
+
+class ChatMessageFeedbackRequest(BaseModel):
+    """채팅 메시지 피드백 요청"""
+    message_id: str
+    feedback: FeedbackType
+    comment: Optional[str] = None
+
+
+class ChatMessageFeedbackResponse(BaseModel):
+    """채팅 메시지 피드백 응답"""
+    message_id: str
+    feedback: FeedbackType
+    comment: Optional[str] = None
+    created_at: datetime
 
 
 class RAGTestResponse(BaseModel):

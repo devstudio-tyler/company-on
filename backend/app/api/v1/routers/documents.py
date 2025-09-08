@@ -322,6 +322,7 @@ async def get_document_chunks(
     page: int = Query(1, ge=1, description="페이지 번호"),
     limit: int = Query(20, ge=1, le=100, description="페이지당 항목 수"),
     search: Optional[str] = Query(None, description="검색어"),
+    chunk_index: Optional[int] = Query(None, description="특정 청크 인덱스 조회"),
     db: Session = Depends(get_db)
 ):
     """
@@ -329,6 +330,36 @@ async def get_document_chunks(
     """
     try:
         document_service = DocumentService(db)
+        
+        # 특정 청크 인덱스가 지정된 경우
+        if chunk_index is not None:
+            from ....models.document import DocumentChunk
+            from ....schemas.document import DocumentChunkResponse
+            
+            # 특정 청크만 조회
+            chunk = db.query(DocumentChunk).filter(
+                DocumentChunk.document_id == document_id,
+                DocumentChunk.chunk_index == chunk_index
+            ).first()
+            
+            if not chunk:
+                return DocumentChunkListResponse(chunks=[], total=0)
+                
+            chunk_response = DocumentChunkResponse(
+                id=chunk.id,
+                document_id=chunk.document_id,
+                chunk_index=chunk.chunk_index,
+                content=chunk.content,
+                chunk_metadata=chunk.chunk_metadata,
+                created_at=chunk.created_at
+            )
+            
+            return DocumentChunkListResponse(
+                chunks=[chunk_response],
+                total=1
+            )
+        
+        # 일반적인 청크 목록 조회
         chunks, total = document_service.get_document_chunks(
             document_id=document_id,
             page=page,

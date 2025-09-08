@@ -21,6 +21,9 @@ from ....schemas.chat import (
     ChatSessionResponse,
     ChatSessionListResponse,
     ChatMessageListResponse,
+    ChatMessageFeedbackRequest,
+    ChatMessageFeedbackResponse,
+    FeedbackType,
     RAGTestResponse
 )
 from ....models.chat import ChatSession, ChatMessage
@@ -308,6 +311,63 @@ async def delete_chat_session(
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"채팅 세션 삭제 실패: {str(e)}")
+
+
+@router.post("/chat/messages/{message_id}/feedback", response_model=ChatMessageFeedbackResponse)
+async def update_message_feedback(
+    message_id: str,
+    request: ChatMessageFeedbackRequest,
+    db: Session = Depends(get_db)
+):
+    """채팅 메시지 피드백 업데이트"""
+    try:
+        # 메시지 확인
+        message = db.query(ChatMessage).filter(ChatMessage.id == int(message_id)).first()
+        if not message:
+            raise HTTPException(status_code=404, detail="메시지를 찾을 수 없습니다")
+        
+        # 피드백 업데이트
+        message.feedback = request.feedback.value
+        message.feedback_comment = request.comment
+        db.commit()
+        
+        return ChatMessageFeedbackResponse(
+            message_id=str(message.id),
+            feedback=FeedbackType(message.feedback) if message.feedback else FeedbackType.NONE,
+            comment=message.feedback_comment,
+            created_at=message.created_at
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"피드백 업데이트 실패: {str(e)}")
+
+
+@router.get("/chat/messages/{message_id}/feedback", response_model=ChatMessageFeedbackResponse)
+async def get_message_feedback(
+    message_id: str,
+    db: Session = Depends(get_db)
+):
+    """채팅 메시지 피드백 조회"""
+    try:
+        # 메시지 확인
+        message = db.query(ChatMessage).filter(ChatMessage.id == int(message_id)).first()
+        if not message:
+            raise HTTPException(status_code=404, detail="메시지를 찾을 수 없습니다")
+        
+        return ChatMessageFeedbackResponse(
+            message_id=str(message.id),
+            feedback=FeedbackType(message.feedback) if message.feedback else FeedbackType.NONE,
+            comment=message.feedback_comment,
+            created_at=message.created_at
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"피드백 조회 실패: {str(e)}")
 
 
 @router.get("/chat/test", response_model=RAGTestResponse)

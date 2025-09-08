@@ -120,15 +120,27 @@ class RAGService:
                 keyword_weight=0.3  # 키워드 검색 가중치
             )
             
-            # 검색 결과를 문서 형태로 변환
+            # 검색 결과를 문서 형태로 변환하고 문서 메타데이터 추가
             documents = []
             for result in search_response.results:
-                documents.append({
-                    "title": result.title or "제목 없음",
+                # 원본 문서 정보 가져오기
+                from ..models.document import Document
+                document = db.query(Document).filter(Document.id == result.document_id).first()
+                
+                doc_info = {
+                    "title": result.title or (document.title if document else "제목 없음"),
                     "content": result.content,
                     "source": f"문서 ID: {result.document_id}, 청크: {result.chunk_index}",
-                    "score": result.score
-                })
+                    "score": result.score,
+                    "document_id": result.document_id,
+                    "chunk_index": result.chunk_index,
+                    "filename": document.filename if document else "알 수 없음",
+                    "file_size": document.file_size if document else 0,
+                    "created_at": document.created_at.isoformat() if document and document.created_at else None,
+                    "download_url": f"/api/v1/documents/{result.document_id}/download" if document else None,
+                    "preview_url": f"/api/v1/documents/{result.document_id}/chunks?chunk_index={result.chunk_index}" if document else None
+                }
+                documents.append(doc_info)
             
             return documents
             
@@ -167,15 +179,24 @@ class RAGService:
             return []
 
     def _extract_sources(self, search_results: List[Dict[str, str]]) -> List[Dict[str, str]]:
-        """출처 정보 추출"""
+        """출처 정보 추출 (풍부한 메타데이터 포함)"""
         sources = []
         for i, result in enumerate(search_results, 1):
-            sources.append({
+            source = {
                 "index": i,
                 "title": result["title"],
                 "source": result["source"],
-                "score": result.get("score", 0.0)
-            })
+                "score": round(result.get("score", 0.0), 4),
+                "document_id": result.get("document_id"),
+                "chunk_index": result.get("chunk_index"),
+                "filename": result.get("filename"),
+                "file_size": result.get("file_size", 0),
+                "created_at": result.get("created_at"),
+                "download_url": result.get("download_url"),
+                "preview_url": result.get("preview_url"),
+                "content_preview": result["content"][:200] + "..." if len(result["content"]) > 200 else result["content"]
+            }
+            sources.append(source)
         return sources
 
     async def test_rag_pipeline(self, test_query: str = "안녕하세요", db: Session = None) -> Dict[str, any]:

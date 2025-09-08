@@ -46,6 +46,13 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
 
     try {
       // 스트리밍 API 호출
+      console.log('API 요청 시작:', {
+        url: '/api/v1/chat/messages/stream',
+        clientId,
+        content,
+        sessionId: currentSessionId
+      });
+      
       const response = await fetch('/api/v1/chat/messages/stream', {
         method: 'POST',
         headers: {
@@ -61,8 +68,17 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
         }),
       });
 
+      console.log('API 응답 상태:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('API 응답 오류:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
 
       if (!response.body) {
@@ -177,14 +193,19 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
 
     } catch (error) {
       console.error('메시지 전송 실패:', error);
+      console.error('에러 상세:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : undefined
+      });
       
       // 스트리밍 메시지가 추가된 경우 제거
       setMessages(prev => prev.filter(msg => msg.id !== aiMessageId));
       
-      // 에러 메시지 추가
+      // 에러 메시지 추가 (더 자세한 정보 포함)
       const errorMessage: ChatMessageData = {
         id: `error-${Date.now()}`,
-        content: '죄송합니다. 메시지 전송 중 오류가 발생했습니다. 다시 시도해주세요.',
+        content: `죄송합니다. 메시지 전송 중 오류가 발생했습니다. ${error instanceof Error ? error.message : '다시 시도해주세요.'}`,
         isUser: false,
         timestamp: new Date(),
       };

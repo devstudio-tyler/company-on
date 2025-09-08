@@ -41,21 +41,20 @@ async def create_chat_message(
         
         # 사용자 메시지 저장
         user_message = ChatMessage(
-            id=str(uuid.uuid4()),
             session_id=session.id,
-            client_id=request.client_id,
+            role='user',
             content=request.content,
-            is_user=True,
             created_at=datetime.utcnow()
         )
         db.add(user_message)
         db.commit()
         
         # RAG 응답 생성
-        rag_request = rag_service.RAGRequest(
+        from ....services.rag_service import RAGRequest
+        rag_request = RAGRequest(
             query=request.content,
             client_id=request.client_id,
-            session_id=session.id,
+            session_id=str(session.id),
             max_results=request.max_results,
             include_history=request.include_history
         )
@@ -64,11 +63,9 @@ async def create_chat_message(
         
         # AI 응답 메시지 저장
         ai_message = ChatMessage(
-            id=str(uuid.uuid4()),
             session_id=session.id,
-            client_id=request.client_id,
+            role='assistant',
             content=rag_response.answer,
-            is_user=False,
             created_at=datetime.utcnow()
         )
         db.add(ai_message)
@@ -78,10 +75,10 @@ async def create_chat_message(
         db.commit()
         
         return ChatMessageResponse(
-            message_id=ai_message.id,
+            message_id=str(ai_message.id),
             content=rag_response.answer,
             is_user=False,
-            session_id=session.id,
+            session_id=str(session.id),
             client_id=request.client_id,
             sources=rag_response.sources,
             usage=rag_response.usage,
@@ -106,21 +103,20 @@ async def create_chat_message_stream(
         
         # 사용자 메시지 저장
         user_message = ChatMessage(
-            id=str(uuid.uuid4()),
             session_id=session.id,
-            client_id=request.client_id,
+            role='user',
             content=request.content,
-            is_user=True,
             created_at=datetime.utcnow()
         )
         db.add(user_message)
         db.commit()
         
         # RAG 스트리밍 응답 생성
-        rag_request = rag_service.RAGRequest(
+        from ....services.rag_service import RAGRequest
+        rag_request = RAGRequest(
             query=request.content,
             client_id=request.client_id,
-            session_id=session.id,
+            session_id=str(session.id),
             max_results=request.max_results,
             include_history=request.include_history
         )
@@ -135,11 +131,9 @@ async def create_chat_message_stream(
                 
                 # 완료된 응답 저장
                 ai_message = ChatMessage(
-                    id=str(uuid.uuid4()),
                     session_id=session.id,
-                    client_id=request.client_id,
+                    role='assistant',
                     content=full_response,
-                    is_user=False,
                     created_at=datetime.utcnow()
                 )
                 db.add(ai_message)
@@ -149,7 +143,7 @@ async def create_chat_message_stream(
                 db.commit()
                 
                 # 완료 신호
-                yield f"data: {json.dumps({'type': 'complete', 'message_id': ai_message.id})}\n\n"
+                yield f"data: {json.dumps({'type': 'complete', 'message_id': str(ai_message.id)})}\n\n"
                 
             except Exception as e:
                 yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
@@ -175,7 +169,6 @@ async def create_chat_session(
     """채팅 세션 생성"""
     try:
         session = ChatSession(
-            id=str(uuid.uuid4()),
             client_id=request.client_id,
             title=request.title or f"새 대화 {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
             created_at=datetime.utcnow(),
@@ -187,8 +180,8 @@ async def create_chat_session(
         db.refresh(session)
         
         return ChatSessionResponse(
-            session_id=session.id,
-            client_id=session.client_id,
+            session_id=str(session.id),
+            client_id=str(session.client_id),
             title=session.title,
             created_at=session.created_at,
             updated_at=session.updated_at,
@@ -226,8 +219,8 @@ async def get_chat_sessions(
             ).count()
             
             session_responses.append(ChatSessionResponse(
-                session_id=session.id,
-                client_id=session.client_id,
+                session_id=str(session.id),
+                client_id=str(session.client_id),
                 title=session.title,
                 created_at=session.created_at,
                 updated_at=session.updated_at,
@@ -257,21 +250,21 @@ async def get_chat_messages(
         offset = (page - 1) * size
         
         messages = db.query(ChatMessage).filter(
-            ChatMessage.session_id == session_id
+            ChatMessage.session_id == int(session_id)
         ).order_by(ChatMessage.created_at.asc()).offset(offset).limit(size).all()
         
         total = db.query(ChatMessage).filter(
-            ChatMessage.session_id == session_id
+            ChatMessage.session_id == int(session_id)
         ).count()
         
         message_responses = []
         for message in messages:
             message_responses.append(ChatMessageResponse(
-                message_id=message.id,
+                message_id=str(message.id),
                 content=message.content,
-                is_user=message.is_user,
-                session_id=message.session_id,
-                client_id=message.client_id,
+                is_user=(message.role == 'user'),
+                session_id=str(message.session_id),
+                client_id="",  # 메시지에는 client_id가 없으므로 빈 문자열
                 sources=[],  # 메시지 저장 시에는 sources 정보가 없음
                 usage={},    # 메시지 저장 시에는 usage 정보가 없음
                 model="",    # 메시지 저장 시에는 model 정보가 없음
@@ -297,12 +290,12 @@ async def delete_chat_session(
     """채팅 세션 삭제"""
     try:
         # 세션 확인
-        session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+        session = db.query(ChatSession).filter(ChatSession.id == int(session_id)).first()
         if not session:
             raise HTTPException(status_code=404, detail="채팅 세션을 찾을 수 없습니다")
         
         # 관련 메시지 삭제
-        db.query(ChatMessage).filter(ChatMessage.session_id == session_id).delete()
+        db.query(ChatMessage).filter(ChatMessage.session_id == int(session_id)).delete()
         
         # 세션 삭제
         db.delete(session)
@@ -336,13 +329,12 @@ async def test_rag_pipeline(db: Session = Depends(get_db)):
 async def _get_or_create_session(client_id: str, session_id: str = None, db: Session = None):
     """세션 확인 또는 생성"""
     if session_id:
-        session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+        session = db.query(ChatSession).filter(ChatSession.id == int(session_id)).first()
         if session:
             return session
     
     # 새 세션 생성
     session = ChatSession(
-        id=str(uuid.uuid4()),
         client_id=client_id,
         title=f"새 대화 {datetime.utcnow().strftime('%Y-%m-%d %H:%M')}",
         created_at=datetime.utcnow(),

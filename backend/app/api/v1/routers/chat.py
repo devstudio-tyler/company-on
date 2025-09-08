@@ -9,6 +9,7 @@ from typing import List
 import uuid
 import json
 import asyncio
+import logging
 from datetime import datetime
 
 from ....database import get_db
@@ -28,6 +29,7 @@ from ....schemas.chat import (
 )
 from ....models.chat import ChatSession, ChatMessage
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -126,28 +128,26 @@ async def create_chat_message_stream(
         
         async def generate_stream():
             try:
-                # RAG 응답 생성 (출처 정보 포함)
-                rag_response = await rag_service.generate_answer(rag_request, db)
+                # 1. 검색 수행하여 출처 정보 먼저 전송
+                search_results = await rag_service._perform_search(rag_request.query, rag_request.max_results, db)
                 
                 # 출처 정보 먼저 전송
-                if rag_response.sources:
-                    yield f"data: {json.dumps({'type': 'sources', 'sources': rag_response.sources})}\n\n"
+                if search_results:
+                    sources = rag_service._extract_sources(search_results)
+                    yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
                 
-                # 스트리밍 방식으로 응답 전송 (단어별로 나누어서)
-                words = rag_response.answer.split()
-                for i, word in enumerate(words):
-                    # 마지막 단어가 아니면 공백 추가
-                    chunk = word + (" " if i < len(words) - 1 else "")
-                    yield f"data: {json.dumps({'content': chunk, 'type': 'chunk'})}\n\n"
-                    
-                    # 약간의 지연으로 타이핑 효과 연출
-                    await asyncio.sleep(0.03)
+                # 2. 실제 LLM 스트리밍 응답 생성
+                full_response = ""
+                async for chunk in rag_service.generate_streaming_answer(rag_request, db):
+                    if chunk:  # 빈 청크 건너뛰기
+                        full_response += chunk
+                        yield f"data: {json.dumps({'content': chunk, 'type': 'chunk'})}\n\n"
                 
-                # 완료된 응답 저장
+                # 3. 완료된 응답 저장
                 ai_message = ChatMessage(
                     session_id=session.id,
                     role='assistant',
-                    content=rag_response.answer,
+                    content=full_response,
                     created_at=datetime.utcnow()
                 )
                 db.add(ai_message)
@@ -160,6 +160,7 @@ async def create_chat_message_stream(
                 yield f"data: {json.dumps({'type': 'complete', 'message_id': str(ai_message.id)})}\n\n"
                 
             except Exception as e:
+                logger.error(f"스트리밍 응답 생성 실패: {e}")
                 yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
         
         return StreamingResponse(

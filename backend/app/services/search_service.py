@@ -24,6 +24,31 @@ class SearchService:
         # 임시로 임베딩 서비스 비활성화 (SSL 오류 해결 후 재활성화)
         self.embedding_service = None
         
+    def _preprocess_query(self, query: str) -> str:
+        """
+        검색 쿼리 전처리 (한국어 키워드 추출)
+        """
+        # 한국어에서 중요한 키워드들 추출
+        import re
+        
+        # 확장된 불용어 제거
+        stop_words = [
+            '이', '가', '을', '를', '에', '의', '은', '는', '과', '와', '이다', '입니다', 
+            '무엇', '무엇인지', '어떻게', '왜', '설명', '설명해주세요', '해주세요', '알려주세요',
+            '알려', '해', '주세요', '대해', '대한', '관련', '있는', '없는', '그', '저', '이것',
+            '그것', '것', '뭐', '뭔지'
+        ]
+        
+        # 단어 분리 및 필터링
+        words = re.findall(r'[가-힣a-zA-Z0-9]+', query)
+        keywords = [word for word in words if len(word) > 1 and word not in stop_words]
+        
+        # 로그 추가
+        logger.info(f"추출된 키워드: {keywords}")
+        
+        # 주요 키워드만 반환 (최대 5개)
+        return ' '.join(keywords[:5]) if keywords else query
+
     def hybrid_search(
         self, 
         query: str, 
@@ -44,10 +69,14 @@ class SearchService:
             검색 결과 리스트
         """
         try:
-            # 1. BM25 검색 수행
-            bm25_results = self._bm25_search(query, limit * 2)  # 더 많은 결과를 가져와서 후보 확보
+            # 쿼리 전처리
+            processed_query = self._preprocess_query(query)
+            logger.info(f"원본 쿼리: '{query}' -> 처리된 쿼리: '{processed_query}'")
             
-            # 2. Dense 검색 수행
+            # 1. BM25 검색 수행
+            bm25_results = self._bm25_search(processed_query, limit * 2)  # 더 많은 결과를 가져와서 후보 확보
+            
+            # 2. Dense 검색 수행 (원본 쿼리 사용 - 의미적 유사성을 위해)
             dense_results = self._dense_search(query, limit * 2)
             
             # 3. 결과 통합 및 점수 계산
@@ -74,7 +103,8 @@ class SearchService:
             BM25 검색 결과
         """
         try:
-            # PostgreSQL의 full-text search 사용
+            # PostgreSQL의 full-text search 사용 (한국어 지원 개선)
+            
             sql_query = text("""
                 SELECT 
                     dc.id,
@@ -83,18 +113,39 @@ class SearchService:
                     dc.chunk_metadata,
                     d.filename,
                     d.document_metadata,
-                    ts_rank(
-                        to_tsvector('english', dc.content),
-                        plainto_tsquery('english', :query)
-                    ) as bm25_score
+                    CASE 
+                        WHEN dc.content ILIKE :ilike_query THEN 1.0
+                        WHEN to_tsvector('simple', dc.content) @@ plainto_tsquery('simple', :query) THEN 0.8
+                        ELSE 0.5
+                    END as bm25_score
                 FROM document_chunks dc
                 JOIN documents d ON dc.document_id = d.id
-                WHERE to_tsvector('english', dc.content) @@ plainto_tsquery('english', :query)
+                WHERE dc.content ILIKE :ilike_query 
+                   OR to_tsvector('simple', dc.content) @@ plainto_tsquery('simple', :query)
                 ORDER BY bm25_score DESC
                 LIMIT :limit
             """)
             
-            results = self.db.execute(sql_query, {"query": query, "limit": limit}).fetchall()
+            # 키워드 추출 및 ILIKE 패턴 생성 (더 유연한 패턴)
+            keywords = query.split()
+            # 각 키워드를 개별적으로 검색할 수 있도록 패턴 생성
+            main_keywords = [kw for kw in keywords if len(kw) > 1]
+            
+            if main_keywords:
+                # 가장 중요한 키워드들로 OR 조건 생성
+                ilike_query = f'%{main_keywords[0]}%'
+            else:
+                ilike_query = f'%{query}%'
+            
+            logger.info(f"BM25 검색 - 쿼리: '{query}', ILIKE 패턴: '{ilike_query}'")
+            
+            results = self.db.execute(sql_query, {
+                "query": query, 
+                "ilike_query": ilike_query,
+                "limit": limit
+            }).fetchall()
+            
+            logger.info(f"BM25 검색 결과 수: {len(results)}")
             
             return [
                 {

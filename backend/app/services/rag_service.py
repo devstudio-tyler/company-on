@@ -109,10 +109,12 @@ class RAGService:
     async def _perform_search(self, query: str, max_results: int, db: Session) -> List[Dict[str, str]]:
         """하이브리드 검색 수행"""
         try:
+            logger.info(f"검색 시작: query='{query}', max_results={max_results}")
+            
             # SearchService 인스턴스 생성
             search_service = SearchService(db)
             
-            # 하이브리드 검색 실행
+            # 하이브리드 검색 실행 (동기 함수)
             search_results = search_service.hybrid_search(
                 query=query,
                 limit=max_results,
@@ -120,9 +122,13 @@ class RAGService:
                 beta=0.3    # BM25 검색 가중치
             )
             
+            logger.info(f"검색 결과 수: {len(search_results)}")
+            
             # 검색 결과를 문서 형태로 변환하고 문서 메타데이터 추가
             documents = []
-            for result in search_results:
+            for i, result in enumerate(search_results):
+                logger.info(f"검색 결과 {i+1}: {result}")
+                
                 # 원본 문서 정보 가져오기
                 from ..models.document import Document
                 document = db.query(Document).filter(Document.id == result["document_id"]).first()
@@ -141,7 +147,9 @@ class RAGService:
                     "preview_url": f"/api/v1/documents/{result['document_id']}/chunks?chunk_index={result['id']}" if document else None
                 }
                 documents.append(doc_info)
+                logger.info(f"변환된 문서 정보: {doc_info}")
             
+            logger.info(f"최종 반환 문서 수: {len(documents)}")
             return documents
             
         except Exception as e:
@@ -183,17 +191,17 @@ class RAGService:
         sources = []
         for i, result in enumerate(search_results, 1):
             source = {
-                "index": i,
-                "title": result["title"],
-                "source": result["source"],
-                "score": round(result.get("score", 0.0), 4),
-                "document_id": result.get("document_id"),
-                "chunk_index": result.get("chunk_index"),
-                "filename": result.get("filename"),
-                "file_size": result.get("file_size", 0),
-                "created_at": result.get("created_at"),
-                "download_url": result.get("download_url"),
-                "preview_url": result.get("preview_url"),
+                "index": str(i),
+                "title": str(result["title"]),
+                "source": str(result["source"]),
+                "score": str(round(result.get("score", 0.0), 4)),
+                "document_id": str(result.get("document_id", "")),
+                "chunk_index": str(result.get("chunk_index", "")),
+                "filename": str(result.get("filename", "")),
+                "file_size": str(result.get("file_size", 0)),
+                "created_at": str(result.get("created_at", "")),
+                "download_url": str(result.get("download_url", "")),
+                "preview_url": str(result.get("preview_url", "")),
                 "content_preview": result["content"][:200] + "..." if len(result["content"]) > 200 else result["content"]
             }
             sources.append(source)

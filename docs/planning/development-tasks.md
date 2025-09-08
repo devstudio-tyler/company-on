@@ -83,10 +83,12 @@
   - 하이브리드 검색 (BM25 + Dense)
   - 벡터 유사도 검색
   - 검색 결과 랭킹
-- [ ] **LLM 통합** (2시간)
-  - OpenAI/Anthropic API 연동
-  - 컨텍스트 윈도우 관리
-  - 스트리밍 응답 처리
+- [x] **LLM 통합** (2시간)
+  - OpenAI/Anthropic API 연동 ✅
+  - LLM 프로바이더 추상화 (OpenAI | OpenRouter | Vertex) ✅
+  - OpenRouter 기반 Gemma 3 12B 기본 모델 적용 ✅
+  - 컨텍스트 윈도우 관리 (기존 로직 유지)
+  - 스트리밍 응답 처리 (OpenRouter 스트리밍은 후속) ⏳
 
 ### 2.3 채팅 기능 구현 (1일)
 - [x] **메시지 처리 시스템** (3시간) ✅
@@ -246,6 +248,10 @@
 - [x] 개인화된 채팅 세션 생성/조회/삭제 정상 동작 ✅
 - [x] SSE를 통한 실시간 메시지 스트리밍 (client_id 기반) ✅
 - [ ] 출처 링크 및 피드백 저장
+  
+### 추가 진행 사항
+- `/api/v1/llm/ping` 엔드포인트 추가로 LLM 연결 상태 헬스체크 가능 ✅
+- 환경변수 예시 업데이트: `LLM_PROVIDER`, `OPENROUTER_API_KEY`, `OPENROUTER_BASE_URL`, `GEMMA_MODEL` ✅
 
 ### M4 완료 기준 (5일차)
 - [ ] 세션 검색 정확도 80% 이상

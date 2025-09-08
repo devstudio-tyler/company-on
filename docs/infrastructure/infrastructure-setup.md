@@ -78,7 +78,7 @@ services:
     image: minio/minio:latest
     environment:
       MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_ROOT_PASSWORD: minioadmin
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -97,7 +97,12 @@ services:
       - REDIS_URL=redis://redis:6379
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin123
+      - MINIO_SECRET_KEY=minioadmin
+      # LLM 설정 예시
+      - LLM_PROVIDER=openrouter
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+      - GEMMA_MODEL=google/gemma-3-12b-it:free
     depends_on:
       - postgres
       - redis

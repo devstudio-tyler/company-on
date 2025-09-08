@@ -14,6 +14,7 @@ Company-on은 RAG 기반 AI 챗봇을 위한 문서 관리 및 채팅 시스템�
 - 🎯 벡터 임베딩 및 검색 시스템 ✅
 - 🔍 하이브리드 검색 (BM25 + Dense) ✅
 - 📡 Redis Pub/Sub 실시간 알림 ✅
+ - 🤖 LLM 프로바이더 추상화 (OpenAI | OpenRouter | Vertex) 및 OpenRouter Gemma 3 12B 지원 ✅
 
 ---
 
@@ -735,6 +736,31 @@ curl "http://localhost:8000/api/v1/uploads/sessions/$UPLOAD_ID/progress"
 ---
 
 ## 📚 추가 리소스
+
+---
+
+## 🤖 LLM 헬스체크 API
+
+### 1. LLM 연결 확인
+
+**GET** `/llm/ping`
+
+LLM 프로바이더(OpenAI | OpenRouter | Vertex)의 연결 상태를 확인합니다.
+
+#### 응답
+```json
+{"status": "ok"}
+```
+
+#### 실패 시
+```json
+{"detail": "LLM 연결 실패"}
+```
+
+#### 사용 예제
+```bash
+curl "http://localhost:8000/api/v1/llm/ping"
+```
 
 - [FastAPI 공식 문서](https://fastapi.tiangolo.com/)
 - [Server-Sent Events (SSE) 가이드](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)

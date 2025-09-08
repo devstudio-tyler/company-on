@@ -69,6 +69,7 @@ services:
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
       - DEBUG=True
     depends_on:
       postgres:

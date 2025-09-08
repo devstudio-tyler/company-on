@@ -42,6 +42,10 @@ celery_app.conf.update(
     result_expires=3600,  # 1시간 후 결과 만료
     result_persistent=True,
     
+    # 예외 처리 설정 (Redis 백엔드 문제로 인해 결과 저장 비활성화)
+    task_ignore_result=True,
+    task_store_errors_even_if_ignored=False,
+    
     # 워커 설정
     worker_prefetch_multiplier=1,  # 한 번에 하나의 작업만 처리
     worker_max_tasks_per_child=1000,  # 1000개 작업 후 워커 재시작

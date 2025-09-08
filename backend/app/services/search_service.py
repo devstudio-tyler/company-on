@@ -364,3 +364,9 @@ class SearchService:
         except Exception as e:
             logger.error(f"검색 통계 조회 실패: {str(e)}")
             raise
+
+
+# 전역 인스턴스는 의존성 주입으로 생성
+def get_search_service(db: Session) -> SearchService:
+    """SearchService 인스턴스 생성"""
+    return SearchService(db)

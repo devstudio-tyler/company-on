@@ -6,29 +6,38 @@
         "dev": "next dev",
         "build": "next build",
         "start": "next start",
-        "lint": "next lint"
+        "lint": "next lint",
+        "analyze": "ANALYZE=true npm run build",
+        "build:prod": "NODE_ENV=production npm run build"
     },
     "dependencies": {
-        "next": "14.0.3",
-        "react": "^18",
-        "react-dom": "^18",
+        "@headlessui/react": "^2.2.7",
         "@tanstack/react-query": "^5.8.4",
-        "axios": "^1.6.2",
-        "react-dropzone": "^14.2.3",
         "@tanstack/react-virtual": "^3.0.0-beta.60",
-        "pdfjs-dist": "^3.11.174",
+        "autoprefixer": "^10.4.16",
+        "axios": "^1.6.2",
+        "clsx": "^2.1.1",
+        "date-fns": "^4.1.0",
         "docx-preview": "^0.1.4",
         "lucide-react": "^0.294.0",
+        "next": "^15.5.2",
+        "pdfjs-dist": "^3.11.174",
+        "postcss": "^8.4.32",
+        "react": "^18",
+        "react-dom": "^18",
+        "react-dropzone": "^14.2.3",
+        "react-hook-form": "^7.62.0",
+        "tailwind-merge": "^3.3.1",
         "tailwindcss": "^3.3.6",
-        "autoprefixer": "^10.4.16",
-        "postcss": "^8.4.32"
+        "zustand": "^5.0.8"
     },
     "devDependencies": {
-        "typescript": "^5",
         "@types/node": "^20",
         "@types/react": "^18",
         "@types/react-dom": "^18",
         "eslint": "^8",
-        "eslint-config-next": "14.0.3"
+        "eslint-config-next": "14.0.3",
+        "typescript": "^5",
+        "webpack-bundle-analyzer": "^4.10.2"
     }
 }

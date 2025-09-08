@@ -56,7 +56,7 @@ async def create_chat_session(
 async def get_chat_sessions(
     query: Optional[str] = Query(None, description="검색 쿼리 (제목, 설명, 태그)"),
     tags: Optional[str] = Query(None, description="태그 필터 (쉼표로 구분)"),
-    status_filter: Optional[ChatSessionStatus] = Query(None, alias="status", description="상태 필터"),
+    status_filter: Optional[str] = Query(None, alias="status", description="상태 필터"),
     page: int = Query(1, ge=1, description="페이지 번호"),
     limit: int = Query(20, ge=1, le=100, description="페이지당 항목 수"),
     client_id: str = Depends(get_client_id),

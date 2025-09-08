@@ -1,12 +1,9 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'] })
-
 export const metadata: Metadata = {
-    title: 'RAGbot',
-    description: 'RAG-based AI chatbot for internal document search',
+    title: 'Company-on',
+    description: 'AI 기반 문서 검색과 채팅으로 내부 지식을 쉽게 찾아보세요',
 }
 
 export default function RootLayout({
@@ -15,8 +12,15 @@ export default function RootLayout({
     children: React.ReactNode
 }) {
     return (
-        <html lang="en">
-            <body className={inter.className}>{children}</body>
+        <html lang="ko">
+            <head>
+                <link rel="preconnect" href="https://cdn.jsdelivr.net" />
+                <link
+                    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css"
+                    rel="stylesheet"
+                />
+            </head>
+            <body className="font-pretendard">{children}</body>
         </html>
     )
 }

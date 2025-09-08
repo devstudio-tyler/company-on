@@ -2,7 +2,7 @@
 API v1 라우터 통합
 """
 from fastapi import APIRouter
-from .routers import documents, upload_status, chat_sessions, chat_messages, document_processing, search
+from .routers import documents, upload_status, chat_sessions, chat_messages, document_processing, search, chat
 
 api_router = APIRouter(prefix="/api/v1")
 
@@ -23,3 +23,6 @@ api_router.include_router(document_processing.router)
 
 # 검색 라우터 등록
 api_router.include_router(search.router)
+
+# 채팅 라우터 등록 (RAG 통합)
+api_router.include_router(chat.router)

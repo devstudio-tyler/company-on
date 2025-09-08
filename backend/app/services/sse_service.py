@@ -4,6 +4,8 @@ Server-Sent Events (SSE) 서비스
 """
 import asyncio
 import json
+import redis
+import os
 from typing import Dict, Set
 from fastapi import Request
 from ..schemas.upload_session import UploadProgressResponse
@@ -20,6 +22,13 @@ class SSEService:
         self.connections: Dict[str, Set[Request]] = {}
         # 업로드별 연결 관리
         self.upload_connections: Dict[str, Set[Request]] = {}
+        
+        # Redis 클라이언트 설정
+        self.redis_client = redis.Redis.from_url(
+            os.getenv("REDIS_URL", "redis://redis:6379/0")
+        )
+        self.channel_prefix = "sse_notifications"
+        self.pubsub = None
     
     async def add_connection(self, client_id: str, request: Request):
         """
@@ -171,6 +180,68 @@ class SSEService:
         # 연결이 끊어진 클라이언트 제거
         for request in disconnected_clients:
             await self.remove_upload_connection(upload_id, request)
+    
+    async def start_redis_subscription(self):
+        """Redis 구독 시작"""
+        try:
+            self.pubsub = self.redis_client.pubsub()
+            # 모든 SSE 알림 채널 구독
+            self.pubsub.psubscribe(f"{self.channel_prefix}:*")
+            
+            # 백그라운드에서 메시지 처리
+            asyncio.create_task(self._handle_redis_messages())
+            
+            logger.info("Redis subscription started for SSE notifications")
+            
+        except Exception as e:
+            logger.error(f"Failed to start Redis subscription: {e}")
+    
+    async def _handle_redis_messages(self):
+        """Redis 메시지 처리"""
+        try:
+            while True:
+                message = self.pubsub.get_message(timeout=1.0)
+                if message and message['type'] == 'pmessage':
+                    await self._process_redis_message(message)
+                # 비동기적으로 처리하기 위해 잠시 대기
+                await asyncio.sleep(0.1)
+                    
+        except Exception as e:
+            logger.error(f"Error handling Redis messages: {e}")
+    
+    async def _process_redis_message(self, message):
+        """Redis 메시지 처리"""
+        try:
+            data = json.loads(message['data'])
+            channel = message['channel'].decode('utf-8')
+            
+            # 채널에서 upload_id 또는 client_id 추출
+            if ':upload:' in channel:
+                upload_id = channel.split(':upload:')[1]
+                await self._handle_upload_notification(upload_id, data)
+            elif ':client:' in channel:
+                client_id = channel.split(':client:')[1]
+                await self._handle_client_notification(client_id, data)
+                
+        except Exception as e:
+            logger.error(f"Error processing Redis message: {e}")
+    
+    async def _handle_upload_notification(self, upload_id: str, data: dict):
+        """업로드 알림 처리"""
+        if data.get('type') == 'upload_status_change':
+            await self.broadcast_upload_status_change(upload_id, data['status'])
+        elif data.get('type') == 'processing_progress':
+            # 진행률 알림 처리 (향후 구현)
+            pass
+    
+    async def _handle_client_notification(self, client_id: str, data: dict):
+        """클라이언트 알림 처리"""
+        if data.get('type') == 'general_notification':
+            await self.send_general_notification(
+                client_id, 
+                data['message'], 
+                data.get('data', {})
+            )
 
 
 # 전역 SSE 서비스 인스턴스

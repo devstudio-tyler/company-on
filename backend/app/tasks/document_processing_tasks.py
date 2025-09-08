@@ -49,13 +49,14 @@ def process_document_pipeline_task(self, upload_id: str) -> Dict[str, Any]:
         # 문서 처리 서비스 실행
         processing_service = DocumentProcessingService(db)
         
-        # SSE로 상태 알림
-        import asyncio
-        asyncio.create_task(sse_service.broadcast_upload_status_change(
-            upload_id, "processing", 0, 0, "문서 처리 파이프라인 시작"
-        ))
+        # SSE로 상태 알림 (Redis Pub/Sub 사용)
+        from ..services.sse_redis_service import sse_redis_service
+        sse_redis_service.publish_upload_status_change(
+            upload_id, "processing", "문서 처리 파이프라인 시작"
+        )
         
         # 파이프라인 실행
+        import asyncio
         result = asyncio.run(processing_service.process_document_pipeline(upload_id))
         
         # 성공 상태 업데이트
@@ -89,11 +90,11 @@ def process_document_pipeline_task(self, upload_id: str) -> Dict[str, Any]:
             }
         )
         
-        # SSE로 실패 알림
-        import asyncio
-        asyncio.create_task(sse_service.broadcast_upload_status_change(
-            upload_id, "failed", 0, 0, f"처리 실패: {str(e)}"
-        ))
+        # SSE로 실패 알림 (Redis Pub/Sub 사용)
+        from ..services.sse_redis_service import sse_redis_service
+        sse_redis_service.publish_upload_status_change(
+            upload_id, "failed", f"처리 실패: {str(e)}"
+        )
         
         raise
     

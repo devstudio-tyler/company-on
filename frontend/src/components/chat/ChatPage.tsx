@@ -114,30 +114,59 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
             try {
               const parsed = JSON.parse(data);
               
-              if (parsed.type === 'content') {
+              if (parsed.type === 'chunk') {
                 // 텍스트 청크 업데이트
                 setMessages(prev => 
                   prev.map(msg => 
                     msg.id === aiMessageId 
-                      ? { ...msg, content: msg.content + parsed.data }
+                      ? { ...msg, content: msg.content + parsed.content }
                       : msg
                   )
                 );
-              } else if (parsed.type === 'metadata') {
-                // 메타데이터 (세션 ID, 출처 등) 업데이트
-                if (parsed.data.session_id && !currentSessionId) {
-                  setCurrentSessionId(parsed.data.session_id);
-                }
+              } else if (parsed.type === 'sources') {
+                // 출처 정보 업데이트
+                setMessages(prev => 
+                  prev.map(msg => 
+                    msg.id === aiMessageId 
+                      ? { ...msg, sources: parsed.sources }
+                      : msg
+                  )
+                );
+              } else if (parsed.type === 'complete') {
+                // 스트리밍 완료
+                setMessages(prev => 
+                  prev.map(msg => 
+                    msg.id === aiMessageId 
+                      ? { ...msg, isStreaming: false }
+                      : msg
+                  )
+                );
                 
-                if (parsed.data.sources) {
+                // 메시지 ID 업데이트 (백엔드에서 실제 저장된 ID)
+                if (parsed.message_id) {
                   setMessages(prev => 
                     prev.map(msg => 
                       msg.id === aiMessageId 
-                        ? { ...msg, sources: parsed.data.sources }
+                        ? { ...msg, id: parsed.message_id }
                         : msg
                     )
                   );
                 }
+                return;
+              } else if (parsed.type === 'error') {
+                // 에러 처리
+                console.error('스트리밍 에러:', parsed.error);
+                setMessages(prev => prev.filter(msg => msg.id !== aiMessageId));
+                
+                const errorMessage: ChatMessageData = {
+                  id: `error-${Date.now()}`,
+                  content: `죄송합니다. 오류가 발생했습니다: ${parsed.error}`,
+                  isUser: false,
+                  timestamp: new Date(),
+                };
+                
+                setMessages(prev => [...prev, errorMessage]);
+                return;
               }
             } catch (parseError) {
               console.error('스트림 데이터 파싱 실패:', parseError);

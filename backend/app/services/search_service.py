@@ -21,7 +21,8 @@ class SearchService:
     
     def __init__(self, db: Session):
         self.db = db
-        self.embedding_service = EmbeddingService()
+        # 임시로 임베딩 서비스 비활성화 (SSL 오류 해결 후 재활성화)
+        self.embedding_service = None
         
     def hybrid_search(
         self, 
@@ -78,17 +79,17 @@ class SearchService:
                 SELECT 
                     dc.id,
                     dc.document_id,
-                    dc.chunk_text,
+                    dc.content,
                     dc.chunk_metadata,
                     d.filename,
                     d.document_metadata,
                     ts_rank(
-                        to_tsvector('english', dc.chunk_text),
+                        to_tsvector('english', dc.content),
                         plainto_tsquery('english', :query)
                     ) as bm25_score
                 FROM document_chunks dc
                 JOIN documents d ON dc.document_id = d.id
-                WHERE to_tsvector('english', dc.chunk_text) @@ plainto_tsquery('english', :query)
+                WHERE to_tsvector('english', dc.content) @@ plainto_tsquery('english', :query)
                 ORDER BY bm25_score DESC
                 LIMIT :limit
             """)
@@ -99,7 +100,7 @@ class SearchService:
                 {
                     "id": row.id,
                     "document_id": row.document_id,
-                    "chunk_text": row.chunk_text,
+                    "chunk_text": row.content,
                     "chunk_metadata": row.chunk_metadata,
                     "filename": row.filename,
                     "document_metadata": row.document_metadata,
@@ -126,6 +127,10 @@ class SearchService:
             Dense 검색 결과
         """
         try:
+            # 임베딩 서비스가 비활성화된 경우 빈 결과 반환
+            if self.embedding_service is None:
+                return []
+                
             # 쿼리 임베딩 생성
             query_embedding = self.embedding_service.generate_embedding(query)
             
@@ -134,7 +139,7 @@ class SearchService:
                 SELECT 
                     dc.id,
                     dc.document_id,
-                    dc.chunk_text,
+                    dc.content,
                     dc.chunk_metadata,
                     d.filename,
                     d.document_metadata,
@@ -158,7 +163,7 @@ class SearchService:
                 {
                     "id": row.id,
                     "document_id": row.document_id,
-                    "chunk_text": row.chunk_text,
+                    "chunk_text": row.content,
                     "chunk_metadata": row.chunk_metadata,
                     "filename": row.filename,
                     "document_metadata": row.document_metadata,

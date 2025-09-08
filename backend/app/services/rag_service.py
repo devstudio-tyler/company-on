@@ -113,32 +113,32 @@ class RAGService:
             search_service = SearchService(db)
             
             # 하이브리드 검색 실행
-            search_response = await search_service.hybrid_search(
+            search_results = search_service.hybrid_search(
                 query=query,
                 limit=max_results,
-                vector_weight=0.7,  # 벡터 검색 가중치
-                keyword_weight=0.3  # 키워드 검색 가중치
+                alpha=0.7,  # Dense 검색 가중치
+                beta=0.3    # BM25 검색 가중치
             )
             
             # 검색 결과를 문서 형태로 변환하고 문서 메타데이터 추가
             documents = []
-            for result in search_response.results:
+            for result in search_results:
                 # 원본 문서 정보 가져오기
                 from ..models.document import Document
-                document = db.query(Document).filter(Document.id == result.document_id).first()
+                document = db.query(Document).filter(Document.id == result["document_id"]).first()
                 
                 doc_info = {
-                    "title": result.title or (document.title if document else "제목 없음"),
-                    "content": result.content,
-                    "source": f"문서 ID: {result.document_id}, 청크: {result.chunk_index}",
-                    "score": result.score,
-                    "document_id": result.document_id,
-                    "chunk_index": result.chunk_index,
-                    "filename": document.filename if document else "알 수 없음",
+                    "title": document.title if document else "제목 없음",
+                    "content": result["chunk_text"],
+                    "source": f"문서 ID: {result['document_id']}, 청크: {result['id']}",
+                    "score": result.get("combined_score", 0.0),
+                    "document_id": result["document_id"],
+                    "chunk_index": result["id"],
+                    "filename": result["filename"],
                     "file_size": document.file_size if document else 0,
                     "created_at": document.created_at.isoformat() if document and document.created_at else None,
-                    "download_url": f"/api/v1/documents/{result.document_id}/download" if document else None,
-                    "preview_url": f"/api/v1/documents/{result.document_id}/chunks?chunk_index={result.chunk_index}" if document else None
+                    "download_url": f"/api/v1/documents/{result['document_id']}/download" if document else None,
+                    "preview_url": f"/api/v1/documents/{result['document_id']}/chunks?chunk_index={result['id']}" if document else None
                 }
                 documents.append(doc_info)
             

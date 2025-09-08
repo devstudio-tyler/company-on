@@ -126,17 +126,28 @@ async def create_chat_message_stream(
         
         async def generate_stream():
             try:
-                # 스트리밍 응답 생성
-                full_response = ""
-                async for chunk in rag_service.generate_streaming_answer(rag_request, db):
-                    full_response += chunk
+                # RAG 응답 생성 (출처 정보 포함)
+                rag_response = await rag_service.generate_answer(rag_request, db)
+                
+                # 출처 정보 먼저 전송
+                if rag_response.sources:
+                    yield f"data: {json.dumps({'type': 'sources', 'sources': rag_response.sources})}\n\n"
+                
+                # 스트리밍 방식으로 응답 전송 (단어별로 나누어서)
+                words = rag_response.answer.split()
+                for i, word in enumerate(words):
+                    # 마지막 단어가 아니면 공백 추가
+                    chunk = word + (" " if i < len(words) - 1 else "")
                     yield f"data: {json.dumps({'content': chunk, 'type': 'chunk'})}\n\n"
+                    
+                    # 약간의 지연으로 타이핑 효과 연출
+                    await asyncio.sleep(0.03)
                 
                 # 완료된 응답 저장
                 ai_message = ChatMessage(
                     session_id=session.id,
                     role='assistant',
-                    content=full_response,
+                    content=rag_response.answer,
                     created_at=datetime.utcnow()
                 )
                 db.add(ai_message)

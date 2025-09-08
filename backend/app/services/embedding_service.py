@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class EmbeddingService:
     """임베딩 생성 서비스"""
     
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+    def __init__(self, model_name: str = "intfloat/multilingual-e5-base"):
         """
         임베딩 서비스 초기화
         
@@ -22,7 +22,7 @@ class EmbeddingService:
         """
         self.model_name = model_name
         self.model = None
-        self.embedding_dimension = 384  # all-MiniLM-L6-v2 차원 수
+        self.embedding_dimension = 768  # multilingual-e5-base 차원 수
         
         # 모델 초기화
         self._initialize_model()

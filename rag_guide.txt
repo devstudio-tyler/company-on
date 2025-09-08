@@ -1,0 +1,12 @@
+RAG 시스템은 Retrieval Augmented Generation의 줄임말입니다.
+
+RAG의 주요 구성 요소:
+1. 검색 시스템 (Retrieval): 사용자 질문과 관련된 문서를 찾는 시스템
+2. 생성 모델 (Generation): 검색된 문서를 참고하여 답변을 생성하는 LLM
+3. 증강 (Augmented): 검색 결과로 LLM의 답변을 더욱 정확하고 풍부하게 만드는 과정
+
+이 시스템의 장점:
+- 최신 정보 활용 가능
+- 환각(hallucination) 현상 감소
+- 출처 정보 제공
+- 도메인 특화 지식 활용

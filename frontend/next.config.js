@@ -31,6 +31,16 @@ const nextConfig = {
     compiler: {
         removeConsole: process.env.NODE_ENV === 'production',
     },
+
+    // API 프록시 설정 (백엔드로 요청 전달)
+    async rewrites() {
+        return [
+            {
+                source: '/api/v1/:path*',
+                destination: 'http://localhost:8000/api/v1/:path*',
+            },
+        ];
+    },
 }
 
 module.exports = nextConfig

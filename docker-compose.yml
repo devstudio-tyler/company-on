@@ -69,8 +69,13 @@ services:
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LLM_PROVIDER=${LLM_PROVIDER:-openrouter}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_BASE_URL=${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
+      - GEMMA_MODEL=${GEMMA_MODEL:-google/gemma-3-12b-it:free}
       - DEBUG=True
+    env_file:
+      - .env
     depends_on:
       postgres:
         condition: service_healthy
@@ -116,7 +121,6 @@ services:
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_BUCKET_NAME=company-on-documents
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     depends_on:
       - postgres
       - redis
@@ -141,7 +145,6 @@ services:
       - MINIO_ACCESS_KEY=minioadmin
       - MINIO_SECRET_KEY=minioadmin
       - MINIO_BUCKET_NAME=company-on-documents
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
     depends_on:
       - postgres
       - redis

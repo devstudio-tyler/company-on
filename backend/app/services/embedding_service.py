@@ -6,8 +6,6 @@ import numpy as np
 from typing import List, Dict, Any, Optional
 import logging
 from sentence_transformers import SentenceTransformer
-import openai
-from openai import OpenAI
 import os
 
 logger = logging.getLogger(__name__)
@@ -20,11 +18,10 @@ class EmbeddingService:
         임베딩 서비스 초기화
         
         Args:
-            model_name: 사용할 임베딩 모델명
+            model_name: 사용할 임베딩 모델명 (Sentence Transformers 모델만 지원)
         """
         self.model_name = model_name
         self.model = None
-        self.openai_client = None
         self.embedding_dimension = 384  # all-MiniLM-L6-v2 차원 수
         
         # 모델 초기화
@@ -33,21 +30,10 @@ class EmbeddingService:
     def _initialize_model(self):
         """임베딩 모델 초기화"""
         try:
-            if self.model_name.startswith("openai:"):
-                # OpenAI 임베딩 모델
-                api_key = os.getenv("OPENAI_API_KEY")
-                if not api_key:
-                    raise ValueError("OPENAI_API_KEY 환경변수가 설정되지 않았습니다.")
-                
-                self.openai_client = OpenAI(api_key=api_key)
-                self.embedding_dimension = 1536  # OpenAI text-embedding-ada-002 차원
-                logger.info(f"OpenAI 임베딩 모델 초기화 완료: {self.model_name}")
-                
-            else:
-                # Sentence Transformers 모델
-                self.model = SentenceTransformer(self.model_name)
-                self.embedding_dimension = self.model.get_sentence_embedding_dimension()
-                logger.info(f"Sentence Transformers 모델 초기화 완료: {self.model_name}, 차원: {self.embedding_dimension}")
+            # Sentence Transformers 모델만 지원
+            self.model = SentenceTransformer(self.model_name)
+            self.embedding_dimension = self.model.get_sentence_embedding_dimension()
+            logger.info(f"Sentence Transformers 모델 초기화 완료: {self.model_name}, 차원: {self.embedding_dimension}")
                 
         except Exception as e:
             logger.error(f"임베딩 모델 초기화 실패: {str(e)}")
@@ -67,10 +53,7 @@ class EmbeddingService:
             if not text.strip():
                 return [0.0] * self.embedding_dimension
             
-            if self.openai_client:
-                return self._generate_openai_embedding(text)
-            else:
-                return self._generate_sentence_transformer_embedding(text)
+            return self._generate_sentence_transformer_embedding(text)
                 
         except Exception as e:
             logger.error(f"임베딩 생성 실패: {str(e)}")
@@ -90,50 +73,10 @@ class EmbeddingService:
             if not texts:
                 return []
             
-            if self.openai_client:
-                return self._generate_openai_embeddings_batch(texts)
-            else:
-                return self._generate_sentence_transformer_embeddings_batch(texts)
+            return self._generate_sentence_transformer_embeddings_batch(texts)
                 
         except Exception as e:
             logger.error(f"배치 임베딩 생성 실패: {str(e)}")
-            raise
-    
-    def _generate_openai_embedding(self, text: str) -> List[float]:
-        """OpenAI 임베딩 생성"""
-        try:
-            response = self.openai_client.embeddings.create(
-                model="text-embedding-ada-002",
-                input=text
-            )
-            return response.data[0].embedding
-            
-        except Exception as e:
-            logger.error(f"OpenAI 임베딩 생성 실패: {str(e)}")
-            raise
-    
-    def _generate_openai_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
-        """OpenAI 배치 임베딩 생성"""
-        try:
-            # OpenAI는 한 번에 최대 2048개까지 처리 가능
-            batch_size = 100
-            all_embeddings = []
-            
-            for i in range(0, len(texts), batch_size):
-                batch_texts = texts[i:i + batch_size]
-                
-                response = self.openai_client.embeddings.create(
-                    model="text-embedding-ada-002",
-                    input=batch_texts
-                )
-                
-                batch_embeddings = [data.embedding for data in response.data]
-                all_embeddings.extend(batch_embeddings)
-            
-            return all_embeddings
-            
-        except Exception as e:
-            logger.error(f"OpenAI 배치 임베딩 생성 실패: {str(e)}")
             raise
     
     def _generate_sentence_transformer_embedding(self, text: str) -> List[float]:
@@ -198,9 +141,9 @@ class EmbeddingService:
         return {
             "model_name": self.model_name,
             "embedding_dimension": self.embedding_dimension,
-            "provider": "openai" if self.openai_client else "sentence_transformers",
+            "provider": "sentence_transformers",
             "supports_batch": True,
-            "max_batch_size": 100 if self.openai_client else 1000
+            "max_batch_size": 1000
         }
     
     def validate_embedding(self, embedding: List[float]) -> bool:

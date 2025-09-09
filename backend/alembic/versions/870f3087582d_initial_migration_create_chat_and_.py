@@ -56,7 +56,7 @@ def upgrade() -> None:
     op.create_table('embedding_cache',
     sa.Column('id', sa.BigInteger(), nullable=False),
     sa.Column('content_hash', sa.String(length=64), nullable=False),
-    sa.Column('embedding', pgvector.sqlalchemy.Vector(dim=768), nullable=False),
+    sa.Column('embedding', pgvector.sqlalchemy.Vector(dim=384), nullable=False),
     sa.Column('model_name', sa.String(length=100), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.PrimaryKeyConstraint('id')
@@ -82,7 +82,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_chat_messages_id'), 'chat_messages', ['id'], unique=False)
     op.create_table('chat_session_embeddings',
     sa.Column('session_id', sa.BigInteger(), nullable=False),
-    sa.Column('embedding', pgvector.sqlalchemy.Vector(dim=768), nullable=False),
+    sa.Column('embedding', pgvector.sqlalchemy.Vector(dim=384), nullable=False),
     sa.Column('model_name', sa.String(length=100), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.ForeignKeyConstraint(['session_id'], ['chat_sessions.id'], ondelete='CASCADE'),
@@ -94,7 +94,7 @@ def upgrade() -> None:
     sa.Column('document_id', sa.BigInteger(), nullable=False),
     sa.Column('chunk_index', sa.Integer(), nullable=False),
     sa.Column('content', sa.Text(), nullable=False),
-    sa.Column('embedding', pgvector.sqlalchemy.Vector(dim=768), nullable=False),
+    sa.Column('embedding', pgvector.sqlalchemy.Vector(dim=384), nullable=False),
     sa.Column('chunk_metadata', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
     sa.ForeignKeyConstraint(['document_id'], ['documents.id'], ondelete='CASCADE'),
@@ -103,8 +103,8 @@ def upgrade() -> None:
     op.create_index('idx_document_chunks_document_index', 'document_chunks', ['document_id', 'chunk_index'], unique=False)
     op.create_index('idx_document_chunks_embedding_hnsw', 'document_chunks', ['embedding'], unique=False, postgresql_using='hnsw', postgresql_with={'m': 16, 'ef_construction': 64}, postgresql_ops={'embedding': 'vector_cosine_ops'})
     op.create_index(op.f('ix_document_chunks_id'), 'document_chunks', ['id'], unique=False)
-    op.drop_table('users')
-    op.drop_table('companies')
+    # op.drop_table('users')  # 테이블이 존재하지 않아서 주석 처리
+    # op.drop_table('companies')  # 테이블이 존재하지 않아서 주석 처리
     # ### end Alembic commands ###
 
 

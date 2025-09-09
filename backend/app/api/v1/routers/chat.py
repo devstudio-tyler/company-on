@@ -128,8 +128,11 @@ async def create_chat_message_stream(
         
         async def generate_stream():
             try:
+                logger.info(f"스트리밍 응답 생성 시작: query={rag_request.query}")
+                
                 # 1. 검색 수행하여 출처 정보 먼저 전송
                 search_results = await rag_service._perform_search(rag_request.query, rag_request.max_results, db)
+                logger.info(f"검색 완료: {len(search_results)}개 결과")
                 
                 # 출처 정보 먼저 전송
                 if search_results:
@@ -137,9 +140,11 @@ async def create_chat_message_stream(
                     yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
                 
                 # 2. 실제 LLM 스트리밍 응답 생성
+                logger.info("RAG 서비스 호출 시작")
                 full_response = ""
                 async for chunk in rag_service.generate_streaming_answer(rag_request, db):
                     if chunk:  # 빈 청크 건너뛰기
+                        logger.info(f"라우터에서 청크 수신: {chunk}")
                         full_response += chunk
                         yield f"data: {json.dumps({'content': chunk, 'type': 'chunk'})}\n\n"
                         
@@ -164,7 +169,11 @@ async def create_chat_message_stream(
                 
             except Exception as e:
                 logger.error(f"스트리밍 응답 생성 실패: {e}")
-                yield f"data: {json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+                logger.error(f"오류 타입: {type(e).__name__}")
+                logger.error(f"오류 상세: {str(e)}")
+                import traceback
+                logger.error(f"스택 트레이스: {traceback.format_exc()}")
+                yield f"data: {json.dumps({'type': 'error', 'error': f'{type(e).__name__}: {str(e)}'})}\n\n"
         
         return StreamingResponse(
             generate_stream(),
@@ -176,7 +185,12 @@ async def create_chat_message_stream(
         )
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"스트리밍 응답 생성 실패: {str(e)}")
+        logger.error(f"채팅 메시지 스트리밍 생성 중 오류 발생: {e}")
+        logger.error(f"오류 타입: {type(e).__name__}")
+        logger.error(f"오류 상세: {str(e)}")
+        import traceback
+        logger.error(f"스택 트레이스: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"{type(e).__name__}: {str(e)}")
 
 
 @router.post("/chat/sessions", response_model=ChatSessionResponse)
@@ -404,9 +418,15 @@ async def test_rag_pipeline(db: Session = Depends(get_db)):
 async def _get_or_create_session(client_id: str, session_id: str = None, db: Session = None):
     """세션 확인 또는 생성"""
     if session_id:
-        session = db.query(ChatSession).filter(ChatSession.id == int(session_id)).first()
-        if session:
-            return session
+        # session_id가 숫자인지 확인
+        try:
+            session_id_int = int(session_id)
+            session = db.query(ChatSession).filter(ChatSession.id == session_id_int).first()
+            if session:
+                return session
+        except ValueError:
+            # session_id가 숫자가 아닌 경우 무시하고 새 세션 생성
+            pass
     
     # 새 세션 생성
     session = ChatSession(

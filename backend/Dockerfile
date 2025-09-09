@@ -9,13 +9,16 @@ RUN apt-get update && apt-get install -y \
     g++ \
     libpq-dev \
     curl \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    tesseract-ocr-kor \
+    libtesseract-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Python 의존성 파일 복사 및 설치
-COPY backend/requirements.txt ./requirements.txt
+COPY requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r ./requirements.txt
 
-# 애플리케이션 코드 복사
 # 애플리케이션 코드 복사
 COPY . .
 

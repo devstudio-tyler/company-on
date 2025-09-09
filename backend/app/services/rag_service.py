@@ -84,8 +84,11 @@ class RAGService:
     ) -> AsyncGenerator[str, None]:
         """RAG 기반 스트리밍 답변 생성"""
         try:
+            logger.info(f"RAG 스트리밍 답변 생성 시작: query={request.query}")
+            
             # 1. 하이브리드 검색 수행
             search_results = await self._perform_search(request.query, request.max_results, db)
+            logger.info(f"검색 완료: {len(search_results)}개 결과")
             
             # 2. 대화 히스토리 가져오기
             conversation_history = []
@@ -93,13 +96,16 @@ class RAGService:
                 conversation_history = await self._get_conversation_history(
                     request.session_id, db
                 )
+                logger.info(f"대화 히스토리: {len(conversation_history)}개 메시지")
             
             # 3. 스트리밍 답변 생성
+            logger.info("LLM 서비스 호출 시작")
             async for chunk in self.llm_service.generate_streaming_response(
                 user_message=request.query,
                 context_documents=search_results,
                 conversation_history=conversation_history
             ):
+                logger.info(f"RAG에서 청크 수신: {chunk}")
                 yield chunk
                 
         except Exception as e:
@@ -163,8 +169,6 @@ class RAGService:
     ) -> List[Dict[str, str]]:
         """대화 히스토리 가져오기"""
         try:
-            from ..models.chat_session import ChatMessage
-            
             # 최근 10개 메시지 가져오기
             messages = db.query(ChatMessage).filter(
                 ChatMessage.session_id == session_id
@@ -176,7 +180,7 @@ class RAGService:
             history = []
             for msg in messages:
                 history.append({
-                    "role": "user" if msg.is_user else "assistant",
+                    "role": msg.role,
                     "content": msg.content
                 })
             

@@ -15,7 +15,8 @@ logger = logging.getLogger(__name__)
 
 class LLMConfig(BaseModel):
     """LLM 설정 모델"""
-    model: str = "google/gemma-3-12b-it:free"
+    # 기본값은 경량 모델로 설정 (환경변수로 덮어쓰기 가능)
+    model: str = "google/gemma-3-4b-it:free"
     max_tokens: int = 1000
     temperature: float = 0.7
     top_p: float = 1.0
@@ -48,7 +49,7 @@ class LLMService:
         else:
             self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
             
-        # Gemma 3 12B IT(free) 모델 설정
+        # 환경변수로 모델 지정 (예: google/gemma-3-12b-it:free 등)
         self.config.model = os.getenv("GEMMA_MODEL", "google/gemma-3-12b-it:free")
         logger.info(f"OpenRouter Gemma 모델 초기화: {self.config.model}")
         
@@ -144,20 +145,53 @@ class LLMService:
             )
             
             # OpenRouter 스트리밍 API 호출
-            stream = await self.client.chat.completions.create(
-                model=self.config.model,
-                messages=messages,
-                max_tokens=self.config.max_tokens,
-                temperature=self.config.temperature,
-                stream=True
-            )
+            logger.info(f"OpenRouter API 호출 시작: model={self.config.model}")
+            logger.info(f"메시지 수: {len(messages)}")
+            logger.info(f"메시지 내용: {[msg.get('role', 'unknown') + ': ' + msg.get('content', '')[:100] + '...' for msg in messages]}")
             
-            async for chunk in stream:
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+            try:
+                # 타임아웃 설정 (30초)
+                import asyncio
+                stream = await asyncio.wait_for(
+                    self.client.chat.completions.create(
+                        model=self.config.model,
+                        messages=messages,
+                        max_tokens=self.config.max_tokens,
+                        temperature=self.config.temperature,
+                        stream=True
+                    ),
+                    timeout=30.0
+                )
+                logger.info("OpenRouter API 호출 완료, 스트림 시작")
+                
+                chunk_count = 0
+                async for chunk in stream:
+                    chunk_count += 1
+                    if chunk.choices and len(chunk.choices) > 0 and chunk.choices[0].delta.content:
+                        logger.info(f"스트리밍 청크 #{chunk_count}: {chunk.choices[0].delta.content}")
+                        yield chunk.choices[0].delta.content
+                    else:
+                        logger.debug(f"빈 청크 #{chunk_count}: {chunk}")
+                
+                logger.info(f"스트리밍 완료: 총 {chunk_count}개 청크 처리")
+                
+            except asyncio.TimeoutError:
+                logger.error("OpenRouter API 호출 타임아웃 (30초)")
+                yield "죄송합니다. 응답 생성에 시간이 오래 걸리고 있습니다. 잠시 후 다시 시도해주세요."
+                return
+            except Exception as api_error:
+                logger.error(f"OpenRouter API 호출 중 오류: {api_error}")
+                logger.error(f"API 오류 타입: {type(api_error).__name__}")
+                logger.error(f"API 오류 상세: {str(api_error)}")
+                if hasattr(api_error, 'response'):
+                    logger.error(f"API 응답 상태: {api_error.response.status_code if hasattr(api_error.response, 'status_code') else 'unknown'}")
+                yield f"API 호출 중 오류가 발생했습니다: {str(api_error)}"
+                return
                     
         except Exception as e:
             logger.error(f"LLM 스트리밍 응답 생성 실패: {e}")
+            logger.error(f"오류 타입: {type(e).__name__}")
+            logger.error(f"오류 상세: {str(e)}")
             raise
 
     def _build_context(self, context_documents: List[Dict[str, str]]) -> str:

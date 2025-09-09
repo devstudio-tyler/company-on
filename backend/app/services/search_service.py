@@ -21,8 +21,14 @@ class SearchService:
     
     def __init__(self, db: Session):
         self.db = db
-        # 임시로 임베딩 서비스 비활성화 (SSL 오류 해결 후 재활성화)
-        self.embedding_service = None
+        # 임베딩 서비스 다시 활성화 (SSL 오류 해결됨)
+        try:
+            from .embedding_service import EmbeddingService
+            self.embedding_service = EmbeddingService()
+            logger.info("임베딩 서비스 초기화 성공")
+        except Exception as e:
+            logger.error(f"임베딩 서비스 초기화 실패: {e}")
+            self.embedding_service = None
         
     def _preprocess_query(self, query: str) -> str:
         """
@@ -180,13 +186,19 @@ class SearchService:
         try:
             # 임베딩 서비스가 비활성화된 경우 빈 결과 반환
             if self.embedding_service is None:
+                logger.warning("임베딩 서비스가 비활성화되어 Dense 검색을 건너뜁니다")
                 return []
                 
             # 쿼리 임베딩 생성
+            logger.info(f"Dense 검색 시작: query='{query}'")
             query_embedding = self.embedding_service.generate_embedding(query)
+            logger.info(f"쿼리 임베딩 생성 완료: {len(query_embedding)}차원")
             
-            # 벡터 유사도 검색 (코사인 유사도)
-            sql_query = text("""
+            # 벡터를 문자열로 변환하여 PostgreSQL에 전달
+            query_embedding_str = '[' + ','.join(map(str, query_embedding)) + ']'
+            
+            # 벡터 유사도 검색 (코사인 유사도) - f-string 사용으로 매개변수 바인딩 문제 해결
+            sql_query = text(f"""
                 SELECT 
                     dc.id,
                     dc.document_id,
@@ -194,21 +206,17 @@ class SearchService:
                     dc.chunk_metadata,
                     d.filename,
                     d.document_metadata,
-                    1 - (dc.embedding <=> :query_embedding) as dense_score
+                    1 - (dc.embedding <=> '{query_embedding_str}'::vector) as dense_score
                 FROM document_chunks dc
                 JOIN documents d ON dc.document_id = d.id
                 WHERE dc.embedding IS NOT NULL
-                ORDER BY dc.embedding <=> :query_embedding
-                LIMIT :limit
+                ORDER BY dc.embedding <=> '{query_embedding_str}'::vector
+                LIMIT {limit}
             """)
             
-            results = self.db.execute(
-                sql_query, 
-                {
-                    "query_embedding": query_embedding.tolist(),
-                    "limit": limit
-                }
-            ).fetchall()
+            results = self.db.execute(sql_query).fetchall()
+            
+            logger.info(f"Dense 검색 결과 수: {len(results)}")
             
             return [
                 {

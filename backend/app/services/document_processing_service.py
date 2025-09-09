@@ -15,6 +15,8 @@ from ..services.text_chunker import TextChunker
 from ..services.embedding_service import EmbeddingService
 from ..services.minio_service import MinIOService
 from ..services.sse_service import sse_service
+from ..services.excel_processing_service import ExcelProcessingService
+from ..services.ocr_service import OCRService
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,8 @@ class DocumentProcessingService:
         self.chunker = TextChunker()
         self.embedding_service = EmbeddingService()
         self.minio_service = MinIOService()
+        self.excel_processor = ExcelProcessingService()
+        self.ocr_service = OCRService()
     
     async def process_document_pipeline(self, upload_id: str) -> Dict[str, Any]:
         """
@@ -55,12 +59,17 @@ class DocumentProcessingService:
             parsed_data = await self._extract_text(file_path, upload_session.content_type)
             await self._update_upload_status(upload_id, "processing", "텍스트 추출 완료")
             
-            # 4단계: 문서 레코드 생성
-            document = await self._create_document_record(upload_session, parsed_data)
-            await self._update_upload_status(upload_id, "processing", "문서 레코드 생성 완료")
+            # 4단계: 문서 레코드 확인 또는 생성
+            document = await self._get_or_create_document_record(upload_session, parsed_data)
+            await self._update_upload_status(upload_id, "processing", "문서 레코드 확인 완료")
             
             # 5단계: 텍스트 청킹
-            chunks = await self._chunk_text(parsed_data["text"], document.id)
+            if "chunks" in parsed_data:
+                # 엑셀/CSV 파일의 경우 미리 생성된 청크 사용
+                chunks = await self._create_chunks_from_excel_data(parsed_data["chunks"], document.id)
+            else:
+                # PDF/DOCX 파일의 경우 기존 청킹 로직 사용
+                chunks = await self._chunk_text(parsed_data["text"], document.id)
             await self._update_upload_status(upload_id, "processing", f"텍스트 청킹 완료 ({len(chunks)}개 청크)")
             
             # 6단계: 임베딩 생성 및 저장
@@ -102,11 +111,8 @@ class DocumentProcessingService:
                     upload_session.error_message = message
                 self.db.commit()
                 
-                # SSE로 상태 변경 알림
-                await sse_service.broadcast_upload_status_change(
-                    upload_id, status, upload_session.uploaded_size, 
-                    upload_session.file_size, message
-                )
+                # SSE로 상태 변경 알림 (upload_id, status 만 전달)
+                await sse_service.broadcast_upload_status_change(upload_id, status)
                 
         except Exception as e:
             logger.error(f"상태 업데이트 실패: {upload_id}, 에러: {str(e)}")
@@ -114,16 +120,24 @@ class DocumentProcessingService:
     async def _download_file(self, upload_session: UploadSession) -> str:
         """MinIO에서 파일 다운로드"""
         try:
-            # 임시 파일 생성
+            # MinIO 경로 계산
+            from .minio_service import minio_service
+            file_path = f"uploads/{upload_session.id}/{upload_session.filename}"
+
+            # MinIO에서 파일 다운로드
+            file_bytes = minio_service.download_file(file_path)
+            if file_bytes is None:
+                raise ValueError(f"파일 다운로드 실패: {file_path}")
+
+            # 임시 파일 저장
             temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=f".{upload_session.filename.split('.')[-1]}")
             temp_path = temp_file.name
             temp_file.close()
-            
-            # 임시로 가짜 파일 데이터 생성 (테스트용)
             with open(temp_path, 'wb') as f:
-                f.write(b"This is a test PDF content for document processing pipeline testing.")
-            logger.info(f"Using mock file data for testing: {upload_session.id}")
-            
+                f.write(file_bytes)
+
+            logger.info(f"파일 다운로드 완료: {file_path} -> {temp_path}")
+
             return temp_path
             
         except Exception as e:
@@ -133,6 +147,15 @@ class DocumentProcessingService:
     async def _extract_text(self, file_path: str, content_type: str) -> Dict[str, Any]:
         """텍스트 추출"""
         try:
+            # 이미지(JPG/PNG) 파일 처리 (OCR)
+            if content_type in ['image/jpeg', 'image/png']:
+                return await self._extract_image_text(file_path, content_type)
+            
+            # 엑셀/CSV 파일 처리
+            if content_type in ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'text/csv']:
+                return await self._extract_excel_text(file_path, content_type)
+            
+            # 기존 PDF/DOCX 파일 처리
             # 파일 유효성 검증
             if not self.parser.validate_file(file_path, content_type):
                 raise ValueError(f"파일 유효성 검증 실패: {file_path}")
@@ -147,12 +170,129 @@ class DocumentProcessingService:
         except Exception as e:
             logger.error(f"텍스트 추출 실패: {file_path}, 에러: {str(e)}")
             raise
+
+    async def _extract_image_text(self, file_path: str, content_type: str) -> Dict[str, Any]:
+        """이미지 파일에서 OCR로 텍스트 추출"""
+        try:
+            with open(file_path, 'rb') as f:
+                image_bytes = f.read()
+            ocr = self.ocr_service.extract_text(image_bytes)
+
+            text = (ocr.get('text') or '').strip()
+            metadata = ocr.get('metadata') or {}
+
+            token_count = len(text.split())
+            logger.info(f"이미지 OCR 텍스트 추출 완료: {token_count} tokens")
+
+            return {
+                'text': text,
+                'metadata': {
+                    **metadata,
+                    'file_type': 'image',
+                    'mime': content_type,
+                },
+                'token_count': token_count,
+            }
+        except Exception as e:
+            logger.error(f"이미지 텍스트 추출 실패: {file_path}, 에러: {str(e)}")
+            raise
     
+    async def _extract_excel_text(self, file_path: str, content_type: str) -> Dict[str, Any]:
+        """엑셀/CSV 파일 텍스트 추출"""
+        try:
+            # 파일 읽기
+            with open(file_path, 'rb') as f:
+                file_content = f.read()
+            
+            filename = os.path.basename(file_path)
+            
+            # 파일 타입별 처리
+            if content_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':
+                chunks = self.excel_processor.process_excel_file(file_content, filename)
+            elif content_type == 'text/csv':
+                chunks = self.excel_processor.process_csv_file(file_content, filename)
+            else:
+                raise ValueError(f"지원하지 않는 파일 타입: {content_type}")
+            
+            # 청크 내용을 하나의 텍스트로 결합 (토큰 카운트용)
+            full_text = "\n\n".join([chunk['content'] for chunk in chunks])
+            
+            # 토큰 수 추정 (대략적인 계산)
+            token_count = len(full_text.split())
+            
+            logger.info(f"엑셀/CSV 텍스트 추출 완료: {len(chunks)}개 청크, {token_count}개 토큰")
+            
+            return {
+                'text': full_text,
+                'chunks': chunks,  # 청크 정보 포함
+                'token_count': token_count,
+                'metadata': {
+                    'file_type': 'excel' if content_type == 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' else 'csv',
+                    'total_chunks': len(chunks)
+                }
+            }
+            
+        except Exception as e:
+            logger.error(f"엑셀/CSV 텍스트 추출 실패: {file_path}, 에러: {str(e)}")
+            raise
+    
+    async def _create_chunks_from_excel_data(self, excel_chunks: List[Dict[str, Any]], document_id: int) -> List[Dict[str, Any]]:
+        """엑셀 데이터에서 청크 생성"""
+        try:
+            chunks = []
+            
+            for i, excel_chunk in enumerate(excel_chunks):
+                chunk = {
+                    "document_id": document_id,
+                    "chunk_index": i,
+                    "content": excel_chunk["content"],
+                    "chunk_type": excel_chunk["chunk_type"],
+                    "metadata": excel_chunk["chunk_metadata"]
+                }
+                chunks.append(chunk)
+            
+            logger.info(f"엑셀 데이터에서 {len(chunks)}개 청크 생성")
+            return chunks
+            
+        except Exception as e:
+            logger.error(f"엑셀 청크 생성 실패: {str(e)}")
+            raise
+    
+    async def _get_or_create_document_record(self, upload_session: UploadSession, parsed_data: Dict[str, Any]) -> Document:
+        """문서 레코드 조회 또는 생성"""
+        try:
+            # 이미 연결된 문서가 있는지 확인
+            if upload_session.document_id:
+                existing_document = self.db.query(Document).filter(Document.id == upload_session.document_id).first()
+                if existing_document:
+                    logger.info(f"기존 문서 레코드 사용: {existing_document.id}")
+                    return existing_document
+            
+            # 새 문서 레코드 생성
+            return await self._create_document_record(upload_session, parsed_data)
+            
+        except Exception as e:
+            logger.error(f"문서 레코드 조회/생성 실패: {str(e)}")
+            raise
+
     async def _create_document_record(self, upload_session: UploadSession, parsed_data: Dict[str, Any]) -> Document:
         """문서 레코드 생성"""
         try:
+            # title과 file_path 설정 (nullable=False 필드들)
+            title = upload_session.filename
+            if title.endswith('.txt'):
+                title = title[:-4]
+            elif title.endswith('.pdf'):
+                title = title[:-4]
+            elif title.endswith('.docx'):
+                title = title[:-5]
+            
+            file_path = f"uploads/{upload_session.id}/{upload_session.filename}"
+            
             document = Document(
+                title=title,
                 filename=upload_session.filename,
+                file_path=file_path,
                 file_size=upload_session.file_size,
                 content_type=upload_session.content_type,
                 document_metadata=parsed_data["metadata"],
@@ -208,6 +348,7 @@ class DocumentProcessingService:
                     chunk_index=chunk["chunk_index"],
                     content=chunk["content"],
                     embedding=normalized_embeddings[i],
+                    chunk_type=chunk.get("chunk_type", "text"),  # 기본값은 "text"
                     chunk_metadata=chunk["metadata"]
                 )
                 
@@ -224,6 +365,12 @@ class DocumentProcessingService:
     async def _complete_upload_session(self, upload_id: str, document_id: int):
         """업로드 세션 완료 처리"""
         try:
+            # 문서 상태 완료 처리
+            document = self.db.query(Document).filter(Document.id == document_id).first()
+            if document:
+                document.status = "completed"
+                self.db.commit()
+
             upload_session = self._get_upload_session(upload_id)
             if upload_session:
                 upload_session.status = "completed"
@@ -232,10 +379,7 @@ class DocumentProcessingService:
                 self.db.commit()
                 
                 # SSE로 완료 알림
-                await sse_service.broadcast_upload_status_change(
-                    upload_id, "completed", upload_session.uploaded_size,
-                    upload_session.file_size, "문서 처리 완료"
-                )
+                await sse_service.broadcast_upload_status_change(upload_id, "completed")
                 
         except Exception as e:
             logger.error(f"업로드 세션 완료 처리 실패: {str(e)}")

@@ -5,7 +5,6 @@ import os
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
 # 데이터베이스 URL 설정
 DATABASE_URL = os.getenv(
@@ -16,7 +15,6 @@ DATABASE_URL = os.getenv(
 # SQLAlchemy 엔진 생성
 engine = create_engine(
     DATABASE_URL,
-    poolclass=StaticPool,
     pool_pre_ping=True,
     echo=False  # 개발 시 True로 설정하여 SQL 쿼리 로깅
 )

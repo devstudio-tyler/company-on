@@ -21,7 +21,7 @@
         "docx-preview": "^0.1.4",
         "lucide-react": "^0.294.0",
         "next": "^15.5.2",
-        "pdfjs-dist": "^3.11.174",
+        "pdfjs-dist": "^5.4.149",
         "postcss": "^8.4.32",
         "react": "^18",
         "react-dom": "^18",

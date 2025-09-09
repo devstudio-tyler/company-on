@@ -22,10 +22,8 @@ const nextConfig = {
         },
     }),
 
-    // 실험적 기능
-    experimental: {
-        optimizePackageImports: ['lucide-react'],
-    },
+    // 실험적 기능 완전 제거
+    // experimental: {},
 
     // 컴파일러 최적화
     compiler: {

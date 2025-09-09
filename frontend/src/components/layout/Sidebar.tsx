@@ -1,10 +1,14 @@
 'use client';
 
+import { updateSession, updateSessionPin } from '@/lib/api/sessions';
+import { getClientId } from '@/lib/utils';
 import { ChatSession } from '@/types';
 import {
-    FileText
+    AlertCircle,
+    FileText,
+    RefreshCw
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import SessionCard from '../session/SessionCard';
 import SessionModal from '../session/SessionModal';
 import SessionSearch from '../session/SessionSearch';
@@ -20,6 +24,10 @@ interface SidebarProps {
     onModeChange?: (mode: 'session' | 'document') => void;
     currentMode?: 'session' | 'document';
     className?: string;
+    isLoading?: boolean;
+    isInitialLoad?: boolean;
+    hasError?: boolean;
+    onRefresh?: () => void;
 }
 
 function SessionSidebar({
@@ -32,12 +40,22 @@ function SessionSidebar({
     onSessionDelete,
     onModeChange,
     currentMode = 'session',
-    className = ''
+    className = '',
+    isLoading = false,
+    isInitialLoad = false,
+    hasError = false,
+    onRefresh
 }: SidebarProps) {
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSession, setEditingSession] = useState<ChatSession | null>(null);
     const [filteredSessions, setFilteredSessions] = useState<ChatSession[]>(sessions);
+    const [isModalLoading, setIsModalLoading] = useState(false);
+
+    // sessions가 변경될 때 filteredSessions 동기화
+    useEffect(() => {
+        setFilteredSessions(sessions);
+    }, [sessions]);
 
     const handleSearch = (query: string) => {
         onSearch(query);
@@ -94,17 +112,47 @@ function SessionSidebar({
         setIsModalOpen(true);
     };
 
-    const handleSessionSave = (sessionData: Omit<ChatSession, 'id' | 'created_at' | 'updated_at' | 'message_count'>) => {
+    const handleSessionSave = async (sessionData: Omit<ChatSession, 'id' | 'created_at' | 'updated_at' | 'message_count'>) => {
         if (editingSession) {
-            // 기존 세션 수정
-            const updatedSession: ChatSession = {
+            // 로딩 상태 시작
+            setIsModalLoading(true);
+
+            // 기존 세션 수정 - 낙관적 업데이트
+            const optimisticSession: ChatSession = {
                 ...editingSession,
                 ...sessionData,
                 updated_at: new Date().toISOString()
             };
-            onSessionUpdate(updatedSession);
+
+            // 즉시 UI 업데이트
+            onSessionUpdate(optimisticSession);
+
+            // 백그라운드에서 API 호출
+            try {
+                const clientId = getClientId();
+                // 모든 필드를 한 번에 업데이트
+                const updatedSession = await updateSession(
+                    editingSession.id,
+                    sessionData.title,
+                    sessionData.description || '',
+                    sessionData.tags || [],
+                    sessionData.is_pinned,
+                    clientId
+                );
+                // API 성공 시 서버 데이터로 업데이트
+                onSessionUpdate(updatedSession);
+            } catch (error) {
+                console.error('세션 수정 실패:', error);
+                // API 실패 시 원래 데이터로 롤백
+                onSessionUpdate(editingSession);
+                alert('세션 수정에 실패했습니다. 변경사항이 되돌려졌습니다.');
+            } finally {
+                // 로딩 완료 후 모달 닫기
+                setIsModalLoading(false);
+                setIsModalOpen(false);
+            }
         } else {
-            // 새 세션 생성
+            // 새 세션 생성은 부모 컴포넌트에서 처리
             const newSession: ChatSession = {
                 id: Date.now().toString(),
                 ...sessionData,
@@ -114,19 +162,33 @@ function SessionSidebar({
                 message_count: 0
             };
             onSessionUpdate(newSession);
+            setIsModalOpen(false);
         }
-        setIsModalOpen(false);
     };
 
-    const handleSessionPin = (sessionId: string) => {
+    const handleSessionPin = async (sessionId: string) => {
         const session = sessions.find(s => s.id === sessionId);
         if (session) {
-            const updatedSession = {
+            // 낙관적 업데이트 - 즉시 UI 업데이트
+            const optimisticSession: ChatSession = {
                 ...session,
                 is_pinned: !session.is_pinned,
                 updated_at: new Date().toISOString()
             };
-            onSessionUpdate(updatedSession);
+            onSessionUpdate(optimisticSession);
+
+            // 백그라운드에서 API 호출
+            try {
+                const clientId = getClientId();
+                const updatedSession = await updateSessionPin(sessionId, !session.is_pinned, clientId);
+                // API 성공 시 서버 데이터로 업데이트
+                onSessionUpdate(updatedSession);
+            } catch (error) {
+                console.error('세션 고정 상태 업데이트 실패:', error);
+                // API 실패 시 원래 데이터로 롤백
+                onSessionUpdate(session);
+                alert('세션 고정 상태 업데이트에 실패했습니다. 변경사항이 되돌려졌습니다.');
+            }
         }
     };
 
@@ -177,7 +239,32 @@ function SessionSidebar({
             {/* 세션 리스트 */}
             <div className="flex-1 overflow-y-auto">
                 <div className="p-2">
-                    {filteredSessions.length === 0 ? (
+                    {isLoading || isInitialLoad ? (
+                        <div className="text-center text-gray-500 py-8">
+                            <RefreshCw size={32} className="mx-auto mb-2 text-gray-400 animate-spin" />
+                            <div className="text-sm">세션을 불러오는 중...</div>
+                            <div className="text-xs text-gray-400 mt-1">
+                                잠시만 기다려주세요
+                            </div>
+                        </div>
+                    ) : hasError ? (
+                        <div className="text-center text-gray-500 py-8">
+                            <AlertCircle size={32} className="mx-auto mb-2 text-red-400" />
+                            <div className="text-sm text-red-600 font-medium">세션을 불러오는데 실패했습니다</div>
+                            <div className="text-xs text-gray-500 mt-1 mb-4">
+                                서버 연결을 확인하고 다시 시도해주세요
+                            </div>
+                            {onRefresh && (
+                                <button
+                                    onClick={onRefresh}
+                                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors shadow-sm"
+                                >
+                                    <RefreshCw size={14} className="inline mr-1" />
+                                    다시 시도
+                                </button>
+                            )}
+                        </div>
+                    ) : filteredSessions.length === 0 ? (
                         <div className="text-center text-gray-500 py-8">
                             <div className="text-sm">세션이 없습니다</div>
                             <div className="text-xs text-gray-400 mt-1">
@@ -193,9 +280,9 @@ function SessionSidebar({
                                     if (!a.is_pinned && b.is_pinned) return 1;
                                     return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
                                 })
-                                .map((session) => (
+                                .map((session, index) => (
                                     <SessionCard
-                                        key={session.id}
+                                        key={`${session.id}-${index}`}
                                         session={session}
                                         isSelected={currentSessionId === session.id}
                                         onSelect={onSessionSelect}
@@ -231,6 +318,7 @@ function SessionSidebar({
                 onSave={handleSessionSave}
                 session={editingSession}
                 mode={editingSession ? 'edit' : 'create'}
+                isLoading={isModalLoading}
             />
         </div>
     );

@@ -1,19 +1,21 @@
 'use client';
 
-import React, { useState } from 'react';
 import { format } from 'date-fns';
 import { ko } from 'date-fns/locale';
-import { 
-  ThumbsUp, 
-  ThumbsDown, 
-  Copy, 
-  Check, 
-  ExternalLink,
+import {
+  Bot,
+  Check,
+  ChevronDown,
+  ChevronRight,
+  Copy,
   FileText,
-  MessageCircle,
-  User,
-  Bot
+  Image,
+  Table,
+  ThumbsDown,
+  ThumbsUp,
+  User
 } from 'lucide-react';
+import { useState } from 'react';
 
 export interface Source {
   index: number;
@@ -25,6 +27,218 @@ export interface Source {
   content_preview: string;
   document_id: number;
   chunk_index: number;
+  chunk_type?: string;
+  metadata?: Record<string, any>;
+}
+
+interface DocumentSourceCardProps {
+  documentId: number;
+  title: string;
+  filename: string;
+  chunks: Source[];
+}
+
+function DocumentSourceCard({ documentId, title, filename, chunks }: DocumentSourceCardProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+
+  // 파일 타입에 따른 아이콘 결정
+  const getFileIcon = () => {
+    const ext = filename.toLowerCase().split('.').pop();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) {
+      return <Image size={16} className="text-blue-500" />;
+    } else if (['xlsx', 'xls', 'csv'].includes(ext || '')) {
+      return <Table size={16} className="text-green-500" />;
+    }
+    return <FileText size={16} className="text-gray-500" />;
+  };
+
+  // 파일 타입에 따른 미리보기 렌더링
+  const renderChunkPreview = (chunk: Source) => {
+    const ext = filename.toLowerCase().split('.').pop();
+
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) {
+      // 이미지인 경우 원본 이미지 표시
+      return (
+        <div className="mt-2">
+          <img
+            src={chunk.preview_url || `/api/v1/documents/${documentId}/preview`}
+            alt={title}
+            className="max-w-full h-auto max-h-48 rounded-lg border border-gray-200 shadow-sm"
+            onError={(e) => {
+              // 이미지 로드 실패 시 대체 UI 표시
+              const target = e.target as HTMLImageElement;
+              target.style.display = 'none';
+              const parent = target.parentElement;
+              if (parent) {
+                parent.innerHTML = `
+                  <div class="flex items-center gap-2 p-4 bg-gray-50 rounded-lg">
+                    <div class="w-8 h-8 bg-gray-100 rounded flex items-center justify-center">
+                      <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                      </svg>
+                    </div>
+                    <span class="text-gray-600 text-sm">이미지 미리보기</span>
+                  </div>
+                `;
+              }
+            }}
+          />
+        </div>
+      );
+    } else if (['xlsx', 'xls', 'csv'].includes(ext || '')) {
+      // Excel인 경우 테이블 형태로 표시
+      try {
+        const lines = chunk.content_preview.split('\n').slice(0, 1); // 첫 번째 행만
+        return (
+          <div className="bg-gray-50 rounded p-2 text-xs font-mono">
+            <div className="flex items-center gap-1 mb-1">
+              <Table size={12} className="text-green-500" />
+              <span className="text-gray-600">Excel 데이터</span>
+            </div>
+            <div className="text-gray-700 truncate">
+              {lines[0] || '데이터 없음'}
+            </div>
+          </div>
+        );
+      } catch {
+        return <span className="text-gray-600 text-xs">Excel 데이터 참조</span>;
+      }
+    } else {
+      // 일반 텍스트인 경우
+      return (
+        <div className="text-gray-700 text-sm line-clamp-1">
+          {chunk.content_preview}
+        </div>
+      );
+    }
+  };
+
+
+  // 이미지 파일인지 확인
+  const isImageFile = () => {
+    const ext = filename.toLowerCase().split('.').pop();
+    return ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '');
+  };
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg p-3 text-sm">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          {getFileIcon()}
+          <button
+            onClick={() => setShowPreview(true)}
+            className="font-medium text-gray-900 hover:text-blue-600 truncate text-left"
+            title={title}
+          >
+            {title}
+          </button>
+          {!isImageFile() && (
+            <span className="text-gray-500 text-xs">({chunks.length}개 청크)</span>
+          )}
+        </div>
+        {!isImageFile() && (
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="p-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors"
+          >
+            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          </button>
+        )}
+      </div>
+
+      {/* 이미지 파일인 경우 바로 이미지 표시 */}
+      {isImageFile() && chunks.length > 0 && (
+        <div className="mt-3">
+          {renderChunkPreview(chunks[0])}
+        </div>
+      )}
+
+      {/* 일반 파일인 경우 청크 정보 표시 */}
+      {!isImageFile() && isExpanded && (
+        <div className="mt-3 space-y-2">
+          {chunks.map((chunk, index) => (
+            <div key={chunk.index} className="border-l-2 border-gray-200 pl-3">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-gray-500">
+                  청크 {chunk.chunk_index + 1} • 유사도: {(chunk.score * 100).toFixed(1)}%
+                </span>
+              </div>
+              {renderChunkPreview(chunk)}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* 미리보기 모달 (간단한 구현) */}
+      {showPreview && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-2xl max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-medium text-gray-900">{title}</h3>
+              <button
+                onClick={() => setShowPreview(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="text-sm text-gray-600">
+              <p>문서 ID: {documentId}</p>
+              <p>파일명: {filename}</p>
+              {!isImageFile() && <p>참조된 청크 수: {chunks.length}개</p>}
+            </div>
+
+            {/* 이미지 파일인 경우 원본 이미지 표시 */}
+            {isImageFile() && chunks.length > 0 && (
+              <div className="mt-4">
+                <img
+                  src={chunks[0].preview_url || `/api/v1/documents/${documentId}/preview`}
+                  alt={title}
+                  className="max-w-full h-auto max-h-96 rounded-lg border border-gray-200 shadow-sm"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent) {
+                      parent.innerHTML = `
+                        <div class="flex items-center justify-center p-8 bg-gray-50 rounded-lg">
+                          <div class="text-center">
+                            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                              <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                              </svg>
+                            </div>
+                            <p class="text-gray-600">이미지를 불러올 수 없습니다</p>
+                          </div>
+                        </div>
+                      `;
+                    }
+                  }}
+                />
+              </div>
+            )}
+
+            {/* 일반 파일인 경우 청크 정보 표시 */}
+            {!isImageFile() && (
+              <div className="mt-4 space-y-2">
+                {chunks.map((chunk, index) => (
+                  <div key={chunk.index} className="border border-gray-200 rounded p-3">
+                    <div className="text-xs text-gray-500 mb-2">
+                      청크 {chunk.chunk_index + 1} • 유사도: {(chunk.score * 100).toFixed(1)}%
+                    </div>
+                    <div className="text-sm text-gray-700">
+                      {chunk.content_preview}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export interface ChatMessageProps {
@@ -78,12 +292,8 @@ export default function ChatMessage({
 
   return (
     <div className={`flex gap-4 p-4 ${isUser ? 'bg-transparent' : 'bg-gray-50'}`}>
-      {/* 아바타 */}
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-        isUser 
-          ? 'bg-blue-600 text-white' 
-          : 'bg-green-600 text-white'
-      }`}>
+      {/* 아바타 - 모든 메시지 좌측 정렬 */}
+      <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${isUser ? 'bg-blue-600 text-white' : 'bg-green-600 text-white'}`}>
         {isUser ? <User size={16} /> : <Bot size={16} />}
       </div>
 
@@ -107,49 +317,27 @@ export default function ChatMessage({
               참고한 문서 ({sources.length}개)
             </h4>
             <div className="space-y-2">
-              {sources.map((source) => (
-                <div
-                  key={source.index}
-                  className="bg-white border border-gray-200 rounded-lg p-3 text-sm"
-                >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900 mb-1">
-                        {source.title}
-                      </div>
-                      <div className="text-gray-600 text-xs mb-2">
-                        {source.filename} • 유사도: {(source.score * 100).toFixed(1)}%
-                      </div>
-                      <div className="text-gray-700 line-clamp-2">
-                        {source.content_preview}
-                      </div>
-                    </div>
-                    <div className="flex gap-1 flex-shrink-0">
-                      {source.preview_url && (
-                        <a
-                          href={source.preview_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded"
-                          title="미리보기"
-                        >
-                          <MessageCircle size={14} />
-                        </a>
-                      )}
-                      {source.download_url && (
-                        <a
-                          href={source.download_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1 text-gray-500 hover:text-green-600 hover:bg-green-50 rounded"
-                          title="다운로드"
-                        >
-                          <ExternalLink size={14} />
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </div>
+              {Object.entries(
+                sources.reduce((acc, source) => {
+                  const key = source.document_id;
+                  if (!acc[key]) {
+                    acc[key] = {
+                      title: source.title,
+                      filename: source.filename,
+                      chunks: []
+                    };
+                  }
+                  acc[key].chunks.push(source);
+                  return acc;
+                }, {} as Record<number, { title: string; filename: string; chunks: Source[] }>)
+              ).map(([docId, docInfo]) => (
+                <DocumentSourceCard
+                  key={docId}
+                  documentId={parseInt(docId)}
+                  title={docInfo.title}
+                  filename={docInfo.filename}
+                  chunks={docInfo.chunks}
+                />
               ))}
             </div>
           </div>
@@ -172,26 +360,24 @@ export default function ChatMessage({
             </button>
 
             {/* 피드백 버튼 (AI 메시지에만) */}
-            {!isUser && (
+            {!isUser && onFeedback && (
               <>
                 <button
                   onClick={() => handleFeedback('up')}
-                  className={`p-1 rounded transition-colors ${
-                    feedback === 'up'
-                      ? 'text-green-600 bg-green-50'
-                      : 'text-gray-500 hover:text-green-600 hover:bg-green-50'
-                  }`}
+                  className={`p-1 rounded transition-colors ${feedback === 'up'
+                    ? 'text-green-600 bg-green-50'
+                    : 'text-gray-500 hover:text-green-600 hover:bg-green-50'
+                    }`}
                   title="좋아요"
                 >
                   <ThumbsUp size={14} />
                 </button>
                 <button
                   onClick={() => handleFeedback('down')}
-                  className={`p-1 rounded transition-colors ${
-                    feedback === 'down'
-                      ? 'text-red-600 bg-red-50'
-                      : 'text-gray-500 hover:text-red-600 hover:bg-red-50'
-                  }`}
+                  className={`p-1 rounded transition-colors ${feedback === 'down'
+                    ? 'text-red-600 bg-red-50'
+                    : 'text-gray-500 hover:text-red-600 hover:bg-red-50'
+                    }`}
                   title="싫어요"
                 >
                   <ThumbsDown size={14} />
@@ -201,8 +387,8 @@ export default function ChatMessage({
           </div>
         </div>
 
-        {/* 피드백 코멘트 입력 모달 */}
-        {showFeedbackComment && (
+        {/* 피드백 코멘트 입력 모달 (AI 메시지에만) */}
+        {!isUser && showFeedbackComment && (
           <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
             <div className="text-sm font-medium text-gray-900 mb-2">
               어떤 부분이 도움이 되지 않았나요?

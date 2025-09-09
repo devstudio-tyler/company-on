@@ -2,7 +2,7 @@
 
 import { ChatSession } from '@/types';
 import { Plus, Tag, X } from 'lucide-react';
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 
 interface SessionModalProps {
     isOpen: boolean;
@@ -10,6 +10,7 @@ interface SessionModalProps {
     onSave: (session: Omit<ChatSession, 'id' | 'created_at' | 'updated_at' | 'message_count'>) => void;
     session?: ChatSession | null;
     mode: 'create' | 'edit';
+    isLoading?: boolean;
 }
 
 const SessionModal = memo(function SessionModal({
@@ -17,16 +18,38 @@ const SessionModal = memo(function SessionModal({
     onClose,
     onSave,
     session,
-    mode
+    mode,
+    isLoading = false
 }: SessionModalProps) {
     const [formData, setFormData] = useState({
-        title: session?.title || '',
-        description: session?.description || '',
-        tags: session?.tags || [],
-        is_pinned: session?.is_pinned || false,
-        client_id: session?.client_id || ''
+        title: '',
+        description: '',
+        tags: [],
+        is_pinned: false,
+        client_id: ''
     });
     const [newTag, setNewTag] = useState('');
+
+    // 세션이 변경될 때 폼 데이터 초기화
+    useEffect(() => {
+        if (session) {
+            setFormData({
+                title: session.title || '',
+                description: session.description || '',
+                tags: session.tags || [],
+                is_pinned: session.is_pinned || false,
+                client_id: session.client_id || ''
+            });
+        } else {
+            setFormData({
+                title: '',
+                description: '',
+                tags: [],
+                is_pinned: false,
+                client_id: ''
+            });
+        }
+    }, [session]);
 
     const handleInputChange = (field: string, value: string | boolean) => {
         setFormData(prev => ({
@@ -191,15 +214,24 @@ const SessionModal = memo(function SessionModal({
                         <button
                             type="button"
                             onClick={handleClose}
-                            className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
+                            disabled={isLoading}
+                            className="flex-1 px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                             취소
                         </button>
                         <button
                             type="submit"
-                            className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            disabled={isLoading}
+                            className="flex-1 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                         >
-                            {mode === 'create' ? '생성' : '수정'}
+                            {isLoading ? (
+                                <>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                    {mode === 'create' ? '생성 중...' : '수정 중...'}
+                                </>
+                            ) : (
+                                mode === 'create' ? '생성' : '수정'
+                            )}
                         </button>
                     </div>
                 </form>

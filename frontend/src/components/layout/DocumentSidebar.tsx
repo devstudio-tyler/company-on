@@ -8,9 +8,12 @@ import {
     Eye,
     FileText,
     Filter,
+    Image,
     RefreshCw,
     Search,
-    Trash2
+    Table,
+    Trash2,
+    X
 } from 'lucide-react';
 import { memo, useState } from 'react';
 
@@ -42,6 +45,8 @@ interface DocumentSidebarProps {
     className?: string;
     isLoading?: boolean;
     isInitialLoad?: boolean;
+    hasError?: boolean;
+    onRefresh?: () => void;
 }
 
 const DocumentSidebar = memo(function DocumentSidebar({
@@ -55,10 +60,13 @@ const DocumentSidebar = memo(function DocumentSidebar({
     currentMode = 'document',
     className = '',
     isLoading = false,
-    isInitialLoad = false
+    isInitialLoad = false,
+    hasError = false,
+    onRefresh
 }: DocumentSidebarProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [typeFilters, setTypeFilters] = useState<string[]>([]);
 
     const getStatusIcon = (status: Document['status']) => {
         switch (status) {
@@ -112,6 +120,52 @@ const DocumentSidebar = memo(function DocumentSidebar({
         return '📄';
     };
 
+    // 문서 타입 결정 함수 (허용 확장자: PDF, DOCX, XLSX, CSV, PNG, JPG)
+    const getDocumentType = (mimeType: string, filename: string) => {
+        const ext = filename.toLowerCase().split('.').pop();
+        const lowerMimeType = mimeType.toLowerCase();
+
+        // 확장자 우선 검사 (더 정확함)
+        if (ext === 'pdf') return 'pdf';
+        if (ext === 'docx') return 'word';
+        if (ext === 'xlsx' || ext === 'csv') return 'table';
+        if (ext === 'png' || ext === 'jpg' || ext === 'jpeg') return 'image';
+
+        // MIME 타입 검사 (확장자가 없는 경우를 대비)
+        if (lowerMimeType.includes('pdf')) return 'pdf';
+
+        // Word 문서 (wordprocessingml.document만)
+        if (lowerMimeType.includes('wordprocessingml.document') ||
+            lowerMimeType.includes('application/msword')) return 'word';
+
+        // Excel/스프레드시트 (spreadsheetml.sheet 또는 excel)
+        if (lowerMimeType.includes('spreadsheetml.sheet') ||
+            lowerMimeType.includes('excel') ||
+            lowerMimeType.includes('csv')) return 'table';
+
+        // 이미지
+        if (lowerMimeType.includes('image/')) return 'image';
+
+        // 기타는 모두 other로 분류
+        return 'other';
+    };
+
+    // 타입별 아이콘과 라벨 (허용 확장자에 맞게 수정)
+    const getTypeInfo = (type: string) => {
+        switch (type) {
+            case 'pdf':
+                return { icon: <FileText size={12} />, label: 'PDF', color: 'bg-red-100 text-red-700 border-red-200' };
+            case 'word':
+                return { icon: <FileText size={12} />, label: 'Word', color: 'bg-blue-100 text-blue-700 border-blue-200' };
+            case 'table':
+                return { icon: <Table size={12} />, label: 'Table', color: 'bg-green-100 text-green-700 border-green-200' };
+            case 'image':
+                return { icon: <Image size={12} />, label: 'Image', color: 'bg-purple-100 text-purple-700 border-purple-200' };
+            default:
+                return { icon: <FileText size={12} />, label: '기타', color: 'bg-gray-100 text-gray-700 border-gray-200' };
+        }
+    };
+
     const formatFileSize = (bytes: number) => {
         if (bytes === 0) return '0 Bytes';
         const k = 1024;
@@ -120,10 +174,58 @@ const DocumentSidebar = memo(function DocumentSidebar({
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     };
 
+    // 한글 검색을 위한 정규화 함수
+    const normalizeText = (text: string) => {
+        return text
+            .normalize('NFC') // 유니코드 정규화
+            .toLowerCase()
+            .replace(/[\s\u00A0\u2000-\u200B\u2028\u2029\u3000]/g, ''); // 공백 제거
+    };
+
+    // 한글 자모 분리 검색을 위한 함수
+    const searchInText = (text: string, query: string) => {
+        const normalizedText = normalizeText(text);
+        const normalizedQuery = normalizeText(query);
+
+        // 기본 검색
+        if (normalizedText.includes(normalizedQuery)) {
+            return true;
+        }
+
+        // 한글 자모 분리 검색 (초성 검색)
+        const hangulRegex = /[가-힣]/;
+        if (hangulRegex.test(normalizedQuery)) {
+            // 한글 자모 분리 함수
+            const decomposeHangul = (str: string) => {
+                return str.split('').map(char => {
+                    const code = char.charCodeAt(0);
+                    if (code >= 0xAC00 && code <= 0xD7A3) {
+                        const base = code - 0xAC00;
+                        const cho = Math.floor(base / 588);
+                        const jung = Math.floor((base % 588) / 28);
+                        const jong = base % 28;
+                        return String.fromCharCode(0x1100 + cho) +
+                            String.fromCharCode(0x1161 + jung) +
+                            (jong > 0 ? String.fromCharCode(0x11A7 + jong) : '');
+                    }
+                    return char;
+                }).join('');
+            };
+
+            const decomposedText = decomposeHangul(normalizedText);
+            const decomposedQuery = decomposeHangul(normalizedQuery);
+
+            return decomposedText.includes(decomposedQuery);
+        }
+
+        return false;
+    };
+
     const filteredDocuments = documents.filter(doc => {
-        const matchesSearch = doc.original_name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesSearch = searchInText(doc.original_name, searchQuery);
         const matchesStatus = statusFilter === 'all' || doc.status === statusFilter;
-        return matchesSearch && matchesStatus;
+        const matchesType = typeFilters.length === 0 || typeFilters.includes(getDocumentType(doc.mime_type, doc.filename));
+        return matchesSearch && matchesStatus && matchesType;
     });
 
     const getStatusCounts = () => {
@@ -137,7 +239,26 @@ const DocumentSidebar = memo(function DocumentSidebar({
         return counts;
     };
 
+    const getTypeCounts = () => {
+        const counts: Record<string, number> = {};
+        documents.forEach(doc => {
+            const type = getDocumentType(doc.mime_type, doc.filename);
+            counts[type] = (counts[type] || 0) + 1;
+        });
+        return counts;
+    };
+
     const statusCounts = getStatusCounts();
+    const typeCounts = getTypeCounts();
+
+    // 타입 필터 토글 함수
+    const toggleTypeFilter = (type: string) => {
+        setTypeFilters(prev =>
+            prev.includes(type)
+                ? prev.filter(t => t !== type)
+                : [...prev, type]
+        );
+    };
 
     return (
         <div className={`bg-white border-r border-gray-200 flex flex-col h-full w-80 ${className}`}>
@@ -201,6 +322,48 @@ const DocumentSidebar = memo(function DocumentSidebar({
                             <option value="failed">실패 ({statusCounts.failed})</option>
                         </select>
                     </div>
+
+                    {/* 타입 필터 */}
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-medium text-gray-600">문서 타입</span>
+                            {typeFilters.length > 0 && (
+                                <button
+                                    onClick={() => setTypeFilters([])}
+                                    className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                                >
+                                    <X size={10} />
+                                    모두 해제
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                            {Object.entries(typeCounts)
+                                .filter(([type, count]) => count > 0)
+                                .sort(([a], [b]) => a.localeCompare(b))
+                                .map(([type, count]) => {
+                                    const typeInfo = getTypeInfo(type);
+                                    const isSelected = typeFilters.includes(type);
+                                    return (
+                                        <button
+                                            key={type}
+                                            onClick={() => toggleTypeFilter(type)}
+                                            className={`
+                                                inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium border transition-colors
+                                                ${isSelected
+                                                    ? `${typeInfo.color} border-current`
+                                                    : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'
+                                                }
+                                            `}
+                                        >
+                                            {typeInfo.icon}
+                                            {typeInfo.label}
+                                            <span className="text-xs opacity-75">({count})</span>
+                                        </button>
+                                    );
+                                })}
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -215,6 +378,23 @@ const DocumentSidebar = memo(function DocumentSidebar({
                             <div className="text-xs text-gray-400 mt-1">
                                 잠시만 기다려주세요
                             </div>
+                        </div>
+                    ) : hasError ? (
+                        <div className="text-center text-gray-500 py-8">
+                            <AlertCircle size={32} className="mx-auto mb-2 text-red-400" />
+                            <div className="text-sm text-red-600 font-medium">문서를 불러오는데 실패했습니다</div>
+                            <div className="text-xs text-gray-500 mt-1 mb-4">
+                                서버 연결을 확인하고 다시 시도해주세요
+                            </div>
+                            {onRefresh && (
+                                <button
+                                    onClick={onRefresh}
+                                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors shadow-sm"
+                                >
+                                    <RefreshCw size={14} className="inline mr-1" />
+                                    다시 시도
+                                </button>
+                            )}
                         </div>
                     ) : filteredDocuments.length === 0 ? (
                         <div className="text-center text-gray-500 py-8">

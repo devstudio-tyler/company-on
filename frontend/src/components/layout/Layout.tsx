@@ -1,10 +1,12 @@
 'use client';
 
+import { createNewSession, deleteSession, getSessions } from '@/lib/api/sessions';
 import { getClientId } from '@/lib/utils';
 import { ChatSession } from '@/types';
 import dynamic from 'next/dynamic';
 import React, { memo, useCallback, useEffect, useState } from 'react';
 import DocumentPreviewModal from '../DocumentPreviewModal';
+import NewSessionModal from '../modals/NewSessionModal';
 import DocumentSidebar from './DocumentSidebar';
 
 // Header와 Sidebar들을 동적으로 로드
@@ -29,7 +31,7 @@ interface Document {
 }
 
 interface LayoutProps {
-    children: React.ReactNode;
+    children: (props: { currentSessionId?: string }) => React.ReactNode;
     className?: string;
 }
 
@@ -46,16 +48,21 @@ const Layout = memo(function Layout({ children, className = '' }: LayoutProps) {
     const [pollingActive, setPollingActive] = useState(false);
     const [isDocumentsLoading, setIsDocumentsLoading] = useState(false);
     const [isInitialDocumentsLoad, setIsInitialDocumentsLoad] = useState(true);
+    const [isInitialSessionsLoad, setIsInitialSessionsLoad] = useState(true);
+    const [sessionsError, setSessionsError] = useState(false);
+    const [documentsError, setDocumentsError] = useState(false);
     const [previewModal, setPreviewModal] = useState<{ isOpen: boolean; documentId: string; filename: string }>({
         isOpen: false,
         documentId: '',
         filename: ''
     });
+    const [newSessionModal, setNewSessionModal] = useState(false);
 
     async function fetchDocuments(isInitial = false) {
         try {
             if (isInitial) {
                 setIsDocumentsLoading(true);
+                setDocumentsError(false);
             }
             console.log('Fetching documents from: /api/v1/documents');
             const res = await fetch('/api/v1/documents');
@@ -90,6 +97,9 @@ const Layout = memo(function Layout({ children, className = '' }: LayoutProps) {
                 message: (e as Error).message,
                 stack: (e as Error).stack
             });
+            if (isInitial) {
+                setDocumentsError(true);
+            }
         } finally {
             setIsLoading(false);
             if (isInitial) {
@@ -105,47 +115,61 @@ const Layout = memo(function Layout({ children, className = '' }: LayoutProps) {
         console.log('Client ID:', clientId);
     }, []);
 
-    // 세션 목록 로드 (임시 데이터)
-    useEffect(() => {
-        // TODO: 실제 API 호출로 대체
-        const mockSessions: ChatSession[] = [
-            {
-                id: '1',
-                title: '회사 정책 문의',
-                description: '휴가 정책과 복리후생에 대한 질문',
-                client_id: getClientId(),
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-                message_count: 5,
-                is_pinned: true,
-                tags: ['정책', '휴가']
-            },
-            {
-                id: '2',
-                title: '프로젝트 관련 질문',
-                description: '새로운 프로젝트 진행 방식에 대한 문의',
-                client_id: getClientId(),
-                created_at: new Date(Date.now() - 86400000).toISOString(),
-                updated_at: new Date(Date.now() - 3600000).toISOString(),
-                message_count: 12,
-                is_pinned: false,
-                tags: ['프로젝트', '업무']
-            },
-            {
-                id: '3',
-                title: '기술 문서 검토',
-                description: 'API 문서와 기술 스펙 검토',
-                client_id: getClientId(),
-                created_at: new Date(Date.now() - 172800000).toISOString(),
-                updated_at: new Date(Date.now() - 7200000).toISOString(),
-                message_count: 8,
-                is_pinned: false,
-                tags: ['기술', 'API']
-            }
-        ];
+    // 세션 목록 로드 (실제 API)
+    const fetchSessions = useCallback(async () => {
+        try {
+            setIsLoading(true);
+            setSessionsError(false);
+            const clientId = getClientId();
+            console.log('세션 조회 시 사용하는 클라이언트 ID:', clientId);
+            const response = await getSessions(clientId);
+            console.log('조회된 세션 목록:', response.sessions);
+            setSessions(response.sessions);
+        } catch (error) {
+            console.error('세션 목록 로드 실패:', error);
+            setSessionsError(true);
+            setSessions([]);
+        } finally {
+            setIsLoading(false);
+            setIsInitialSessionsLoad(false);
+        }
+    }, []);
 
-        setSessions(mockSessions);
-        setIsLoading(false);
+    useEffect(() => {
+        fetchSessions();
+    }, [fetchSessions]);
+
+    // 세션 업데이트 이벤트 처리
+    useEffect(() => {
+        const handleSessionUpdated = (event: CustomEvent) => {
+            const { sessionId, title } = event.detail;
+            setSessions(prev => prev.map(session =>
+                session.id === sessionId
+                    ? { ...session, title }
+                    : session
+            ));
+        };
+
+        const handleSessionCreated = (event: CustomEvent) => {
+            const { session } = event.detail;
+            setSessions(prev => {
+                // 중복 세션 방지: 이미 존재하는 세션인지 확인
+                const existingSession = prev.find(s => s.id === session.id);
+                if (existingSession) {
+                    console.log('세션이 이미 존재함:', session.id);
+                    return prev;
+                }
+                console.log('새 세션 추가:', session);
+                return [session, ...prev];
+            });
+        };
+
+        window.addEventListener('sessionUpdated', handleSessionUpdated as EventListener);
+        window.addEventListener('sessionCreated', handleSessionCreated as EventListener);
+        return () => {
+            window.removeEventListener('sessionUpdated', handleSessionUpdated as EventListener);
+            window.removeEventListener('sessionCreated', handleSessionCreated as EventListener);
+        };
     }, []);
 
     // 문서 목록 로드 (실제 API)
@@ -179,10 +203,6 @@ const Layout = memo(function Layout({ children, className = '' }: LayoutProps) {
         setCurrentSessionId(sessionId);
     };
 
-    const handleNewSession = () => {
-        // TODO: 새 세션 생성 로직
-        console.log('새 세션 생성');
-    };
 
     const handleSearch = (query: string) => {
         // TODO: 검색 로직
@@ -204,10 +224,87 @@ const Layout = memo(function Layout({ children, className = '' }: LayoutProps) {
         });
     };
 
-    const handleSessionDelete = (sessionId: string) => {
+    const handleSessionDelete = async (sessionId: string) => {
+        if (!confirm('정말로 이 세션을 삭제하시겠습니까?')) return;
+
+        // 삭제할 세션 정보 저장 (롤백용)
+        const sessionToDelete = sessions.find(s => s.id === sessionId);
+        if (!sessionToDelete) return;
+
+        // 낙관적 업데이트 - 즉시 UI에서 제거
         setSessions(prev => prev.filter(s => s.id !== sessionId));
         if (currentSessionId === sessionId) {
             setCurrentSessionId(undefined);
+        }
+
+        // 백그라운드에서 API 호출
+        try {
+            const clientId = getClientId();
+            console.log('세션 삭제 시 사용하는 클라이언트 ID:', clientId);
+            console.log('삭제할 세션 ID:', sessionId);
+            await deleteSession(sessionId, clientId);
+            // API 성공 시 이미 UI에서 제거되었으므로 추가 작업 불필요
+        } catch (error) {
+            console.error('세션 삭제 실패:', error);
+            // API 실패 시 원래 데이터로 롤백
+            setSessions(prev => [sessionToDelete, ...prev]);
+            if (currentSessionId === sessionId) {
+                setCurrentSessionId(sessionId);
+            }
+            alert('세션 삭제에 실패했습니다. 세션이 복원되었습니다.');
+        }
+    };
+
+    const handleNewSession = () => {
+        setNewSessionModal(true);
+    };
+
+    const handleCreateSession = async (title?: string) => {
+        try {
+            const clientId = getClientId();
+            console.log('세션 생성 시 사용하는 클라이언트 ID:', clientId);
+            const sessionTitle = title || `${new Date().toLocaleDateString('ko-KR')}의 새 채팅`;
+
+            // 임시 세션 생성 (낙관적 업데이트)
+            const tempSession: ChatSession = {
+                id: `temp-${Date.now()}`,
+                title: sessionTitle,
+                description: '',
+                tags: [],
+                is_pinned: false,
+                client_id: clientId,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+                message_count: 0
+            };
+
+            // 즉시 UI에 임시 세션 추가
+            setSessions(prev => [tempSession, ...prev]);
+            setCurrentSessionId(tempSession.id);
+
+            // 백그라운드에서 실제 세션 생성
+            const newSession = await createNewSession(clientId, sessionTitle);
+            console.log('생성된 세션:', newSession);
+
+            // 임시 세션을 실제 세션으로 교체
+            setSessions(prev => {
+                const filtered = prev.filter(s => s.id !== tempSession.id);
+                const existingSession = filtered.find(s => s.id === newSession.id);
+                if (existingSession) {
+                    console.log('세션이 이미 존재함:', newSession.id);
+                    return filtered;
+                }
+                console.log('새 세션 추가:', newSession);
+                return [newSession, ...filtered];
+            });
+            setCurrentSessionId(newSession.id);
+
+        } catch (error) {
+            console.error('새 세션 생성 실패:', error);
+            // 실패 시 임시 세션 제거
+            setSessions(prev => prev.filter(s => s.id !== `temp-${Date.now()}`));
+            setCurrentSessionId(undefined);
+            alert('새 세션 생성에 실패했습니다.');
         }
     };
 
@@ -228,6 +325,15 @@ const Layout = memo(function Layout({ children, className = '' }: LayoutProps) {
             }
         };
         input.click();
+    };
+
+    // 새로고침 함수들
+    const handleSessionsRefresh = () => {
+        fetchSessions();
+    };
+
+    const handleDocumentsRefresh = () => {
+        fetchDocuments(true);
     };
 
     const validateFileType = (file: File): boolean => {
@@ -409,6 +515,10 @@ const Layout = memo(function Layout({ children, className = '' }: LayoutProps) {
                             onSessionDelete={handleSessionDelete}
                             onModeChange={handleModeChange}
                             currentMode={sidebarMode}
+                            isLoading={isLoading}
+                            isInitialLoad={isInitialSessionsLoad}
+                            hasError={sessionsError}
+                            onRefresh={fetchSessions}
                         />
                     )}
                     {sidebarMode === 'document' && (
@@ -423,6 +533,8 @@ const Layout = memo(function Layout({ children, className = '' }: LayoutProps) {
                             currentMode={sidebarMode}
                             isLoading={isDocumentsLoading}
                             isInitialLoad={isInitialDocumentsLoad}
+                            hasError={documentsError}
+                            onRefresh={() => fetchDocuments(true)}
                         />
                     )}
                 </div>
@@ -435,6 +547,7 @@ const Layout = memo(function Layout({ children, className = '' }: LayoutProps) {
                         onSearch={handleSearch}
                         onMenuToggle={handleMenuToggle}
                         onUpload={handleUpload}
+                        onNewSession={handleNewSession}
                     />
                     {isUploading && (
                         <div className="px-4 py-2 text-sm text-gray-600">파일 업로드 중...</div>
@@ -442,7 +555,7 @@ const Layout = memo(function Layout({ children, className = '' }: LayoutProps) {
 
                     {/* 컨텐츠 영역 */}
                     <main className="flex-1 overflow-hidden">
-                        {children}
+                        {children({ currentSessionId })}
                     </main>
                 </div>
 
@@ -460,6 +573,13 @@ const Layout = memo(function Layout({ children, className = '' }: LayoutProps) {
                     onClose={() => setPreviewModal({ isOpen: false, documentId: '', filename: '' })}
                     documentId={previewModal.documentId}
                     filename={previewModal.filename}
+                />
+
+                {/* 새 세션 생성 모달 */}
+                <NewSessionModal
+                    isOpen={newSessionModal}
+                    onClose={() => setNewSessionModal(false)}
+                    onCreateSession={handleCreateSession}
                 />
             </div>
         </GlobalDragDrop>

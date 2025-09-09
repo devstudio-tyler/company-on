@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
 import { Send } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
@@ -9,10 +9,10 @@ interface ChatInputProps {
   placeholder?: string;
 }
 
-export default function ChatInput({ 
-  onSendMessage, 
-  disabled = false, 
-  placeholder = "무엇이든 질문해보세요..." 
+export default function ChatInput({
+  onSendMessage,
+  disabled = false,
+  placeholder = "무엇이든 질문해보세요..."
 }: ChatInputProps) {
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -30,7 +30,7 @@ export default function ChatInput({
     e.preventDefault();
     const trimmedMessage = message.trim();
     if (!trimmedMessage || disabled) return;
-    
+
     onSendMessage(trimmedMessage);
     setMessage('');
   };
@@ -59,27 +59,26 @@ export default function ChatInput({
             disabled={disabled}
             className={`
               w-full resize-none rounded-2xl border border-gray-300 
-              px-4 py-3 pr-14 focus:outline-none focus:ring-2 focus:ring-blue-500 
+              px-4 py-3 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 
               focus:border-transparent min-h-[72px] max-h-40 overflow-y-auto
               ${disabled ? 'bg-gray-100 cursor-not-allowed' : ''}
             `}
             rows={1}
           />
-          <div className="absolute right-2 bottom-2">
+          <div className="absolute right-3 top-3">
             <button
               type="submit"
               disabled={disabled || !message.trim()}
               className={`
-                w-10 h-10 rounded-full flex items-center justify-center shadow-sm
+                w-8 h-8 rounded-full flex items-center justify-center shadow-sm
                 transition-colors duration-200
-                ${
-                  disabled || !message.trim()
-                    ? 'bg-gray-300 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                ${disabled || !message.trim()
+                  ? 'bg-gray-300 cursor-not-allowed'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white'
                 }
               `}
             >
-              <Send size={16} />
+              <Send size={14} />
             </button>
           </div>
         </form>

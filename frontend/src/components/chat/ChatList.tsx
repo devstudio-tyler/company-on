@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import { MessageCircle } from 'lucide-react';
+import { useEffect, useRef } from 'react';
 import ChatMessage, { type Source } from './ChatMessage';
 
 export interface ChatMessageData {
@@ -32,15 +33,13 @@ export default function ChatList({ messages, isLoading = false, onFeedback }: Ch
       <div className="flex-1 flex items-center justify-center p-8">
         <div className="text-center">
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-3.582 8-8 8a8.959 8.959 0 01-4.906-1.456L3 21l2.456-5.094A8.959 8.959 0 013 12c0-4.418 3.582-8 8-8s8 3.582 8 8z" />
-            </svg>
+            <MessageCircle className="w-8 h-8 text-gray-400" />
           </div>
           <h3 className="text-lg font-medium text-gray-900 mb-2">
             새로운 대화를 시작해보세요
           </h3>
           <p className="text-gray-500 max-w-sm mx-auto">
-            궁금한 것이 있으시면 아래 입력창에 질문을 입력해주세요. 
+            궁금한 것이 있으시면 아래 입력창에 질문을 입력해주세요.
             업로드된 문서를 기반으로 답변해드립니다.
           </p>
         </div>
@@ -64,7 +63,7 @@ export default function ChatList({ messages, isLoading = false, onFeedback }: Ch
             onFeedback={onFeedback}
           />
         ))}
-        
+
         {/* 로딩 인디케이터 */}
         {isLoading && (
           <div className="flex gap-4 p-4 bg-gray-50">
@@ -83,7 +82,7 @@ export default function ChatList({ messages, isLoading = false, onFeedback }: Ch
             </div>
           </div>
         )}
-        
+
         {/* 스크롤 앵커 */}
         <div ref={messagesEndRef} />
       </div>

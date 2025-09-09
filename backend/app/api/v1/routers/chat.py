@@ -2,10 +2,11 @@
 채팅 API 라우터
 """
 
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Header
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
-from typing import List
+from sqlalchemy import and_
+from typing import List, Optional
 import uuid
 import json
 import asyncio
@@ -15,6 +16,22 @@ from datetime import datetime
 from ....database import get_db
 from ....services.rag_service import rag_service
 from ....services.sse_service import sse_service
+
+def get_client_id(x_client_id: Optional[str] = Header(None)) -> str:
+    """클라이언트 ID 추출 및 검증"""
+    if not x_client_id:
+        # 클라이언트 ID가 없으면 새로 생성
+        return str(uuid.uuid4())
+    
+    try:
+        # UUID 형식 검증
+        uuid.UUID(x_client_id)
+        return x_client_id
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid client ID format. Must be a valid UUID."
+        )
 from ....schemas.chat import (
     ChatMessageRequest,
     ChatMessageResponse,
@@ -106,16 +123,6 @@ async def create_chat_message_stream(
         # 세션 확인 또는 생성
         session = await _get_or_create_session(request.client_id, request.session_id, db)
         
-        # 사용자 메시지 저장
-        user_message = ChatMessage(
-            session_id=session.id,
-            role='user',
-            content=request.content,
-            created_at=datetime.utcnow()
-        )
-        db.add(user_message)
-        db.commit()
-        
         # RAG 스트리밍 응답 생성
         from ....services.rag_service import RAGRequest
         rag_request = RAGRequest(
@@ -151,7 +158,15 @@ async def create_chat_message_stream(
                         # 타이핑 효과를 위한 작은 지연 추가
                         await asyncio.sleep(0.01)
                 
-                # 3. 완료된 응답 저장
+                # 3. 완료된 응답과 사용자 메시지 함께 저장
+                user_message = ChatMessage(
+                    session_id=session.id,
+                    role='user',
+                    content=request.content,
+                    created_at=datetime.utcnow()
+                )
+                db.add(user_message)
+                
                 ai_message = ChatMessage(
                     session_id=session.id,
                     role='assistant',
@@ -275,10 +290,22 @@ async def get_chat_messages(
     session_id: str,
     page: int = 1,
     size: int = 50,
+    client_id: str = Depends(get_client_id),
     db: Session = Depends(get_db)
 ):
     """채팅 메시지 목록 조회"""
     try:
+        # 세션 존재 및 권한 확인
+        session = db.query(ChatSession).filter(
+            and_(
+                ChatSession.id == int(session_id),
+                ChatSession.client_id == client_id
+            )
+        ).first()
+        
+        if not session:
+            raise HTTPException(status_code=404, detail="세션을 찾을 수 없거나 접근 권한이 없습니다")
+        
         offset = (page - 1) * size
         
         messages = db.query(ChatMessage).filter(
@@ -312,6 +339,42 @@ async def get_chat_messages(
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"채팅 메시지 조회 실패: {str(e)}")
+
+
+@router.put("/chat/sessions/{session_id}")
+async def update_chat_session(
+    session_id: str,
+    request: ChatSessionRequest,
+    db: Session = Depends(get_db)
+):
+    """채팅 세션 업데이트"""
+    try:
+        # 세션 확인
+        session = db.query(ChatSession).filter(ChatSession.id == int(session_id)).first()
+        if not session:
+            raise HTTPException(status_code=404, detail="채팅 세션을 찾을 수 없습니다")
+        
+        # 제목 업데이트
+        if request.title:
+            session.title = request.title
+        
+        session.updated_at = datetime.utcnow()
+        db.commit()
+        
+        return ChatSessionResponse(
+            session_id=str(session.id),
+            client_id=str(session.client_id),
+            title=session.title,
+            created_at=session.created_at,
+            updated_at=session.updated_at,
+            message_count=db.query(ChatMessage).filter(ChatMessage.session_id == session.id).count()
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"채팅 세션 업데이트 실패: {str(e)}")
 
 
 @router.delete("/chat/sessions/{session_id}")

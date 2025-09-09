@@ -1,7 +1,7 @@
 'use client';
 
 import { ChatSession } from '@/types';
-import { Menu, MessageSquare } from 'lucide-react';
+import { Menu, MessageSquare, Plus } from 'lucide-react';
 import React, { useState } from 'react';
 
 interface HeaderProps {
@@ -9,6 +9,7 @@ interface HeaderProps {
     onSearch: (query: string) => void;
     onMenuToggle: () => void;
     onUpload: () => void;
+    onNewSession: () => void;
     className?: string;
 }
 
@@ -17,6 +18,7 @@ export default function Header({
     onSearch,
     onMenuToggle,
     onUpload,
+    onNewSession,
     className = ''
 }: HeaderProps) {
     const [searchQuery, setSearchQuery] = useState('');
@@ -56,6 +58,17 @@ export default function Header({
                     )}
                 </div>
 
+                {/* 오른쪽: 새 세션 생성 버튼 */}
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={onNewSession}
+                        className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-600 hover:text-gray-900 relative"
+                        title="새 세션 생성"
+                    >
+                        <MessageSquare className="w-5 h-5" />
+                        <Plus className="w-3 h-3 absolute -bottom-1 -right-1 bg-blue-600 text-white rounded-full p-0.5" />
+                    </button>
+                </div>
             </div>
         </header>
     );

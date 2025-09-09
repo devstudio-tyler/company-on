@@ -90,8 +90,8 @@ class ChatSessionService:
         total = query.count()
         
         # 페이지네이션 적용
-        offset = (search_request.page - 1) * search_request.limit
-        sessions = query.order_by(desc(ChatSession.updated_at)).offset(offset).limit(search_request.limit).all()
+        offset = (search_request.page - 1) * search_request.size
+        sessions = query.order_by(desc(ChatSession.updated_at)).offset(offset).limit(search_request.size).all()
         
         # 응답 변환
         session_responses = [self._session_to_response(session) for session in sessions]
@@ -100,7 +100,7 @@ class ChatSessionService:
             sessions=session_responses,
             total=total,
             page=search_request.page,
-            limit=search_request.limit
+            size=search_request.size
         )
     
     def update_chat_session(
@@ -125,10 +125,11 @@ class ChatSessionService:
         if request.title is not None:
             session.title = request.title
         if request.description is not None:
-            session.summary = request.description  # description을 summary로 매핑
+            session.description = request.description
         if request.tags is not None:
             session.tags = request.tags
-        # status 필드는 모델에 없으므로 제거
+        if request.is_pinned is not None:
+            session.is_pinned = 'true' if request.is_pinned else 'false'
         
         session.updated_at = datetime.utcnow()
         
@@ -186,14 +187,13 @@ class ChatSessionService:
         last_message_at = last_message.created_at if last_message else None
         
         return ChatSessionResponse(
-            id=session.id,
+            session_id=str(session.id),
             client_id=str(session.client_id),
             title=session.title or "",
-            description=session.summary,  # summary를 description으로 매핑
+            description=session.description,
             tags=session.tags or [],
-            status=ChatSessionStatus.ACTIVE,  # 기본값으로 ACTIVE 설정
+            is_pinned=session.is_pinned == 'true',
             message_count=message_count,
             created_at=session.created_at,
-            updated_at=session.updated_at,
-            last_message_at=last_message_at
+            updated_at=session.updated_at
         )

@@ -18,6 +18,7 @@ class ChatSession(Base):
     id = Column(BigInteger, primary_key=True, index=True)
     client_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     title = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
     summary = Column(Text, nullable=True)
     tags = Column(JSONB, nullable=True)  # JSON 형태로 저장
     is_pinned = Column(String(10), default='false')  # 'true'|'false'

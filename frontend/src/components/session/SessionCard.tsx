@@ -53,30 +53,6 @@ const SessionCard = memo(function SessionCard({
             `}
             onClick={handleClick}
         >
-            {/* 액션 버튼 (수정/삭제는 hover시에만, 핀은 고정 시 항상 표시) */}
-            <div className="absolute top-2 right-2 flex items-center gap-1">
-                <button
-                    onClick={handleEditClick}
-                    className="p-1 rounded text-gray-400 hover:text-blue-500 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="수정"
-                >
-                    <Edit size={12} />
-                </button>
-                <button
-                    onClick={handleDeleteClick}
-                    className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="삭제"
-                >
-                    <Trash2 size={12} />
-                </button>
-                <button
-                    onClick={handlePinClick}
-                    className={`p-1 rounded transition-colors ${session.is_pinned ? 'text-yellow-500' : 'text-gray-400 hover:text-yellow-500 opacity-0 group-hover:opacity-100'}`}
-                    title={session.is_pinned ? '고정 해제' : '상단 고정'}
-                >
-                    <Pin size={14} className={session.is_pinned ? 'fill-current' : ''} />
-                </button>
-            </div>
 
             {/* 세션 제목 */}
             <h3 className="font-medium text-gray-900 text-sm mb-1 pr-6 line-clamp-2">
@@ -125,7 +101,50 @@ const SessionCard = memo(function SessionCard({
                 </div>
             </div>
 
-            {/* 액션 버튼 Row는 상단으로 이동 */}
+            {/* Pin 버튼 (고정된 세션은 항상 표시) */}
+            {session.is_pinned && (
+                <div className="absolute top-2 right-2 z-20">
+                    <button
+                        onClick={handlePinClick}
+                        className="p-1.5 rounded-md bg-yellow-100 text-yellow-600 hover:bg-yellow-200 transition-colors shadow-sm"
+                        title="고정 해제"
+                    >
+                        <Pin size={14} className="fill-current" />
+                    </button>
+                </div>
+            )}
+
+            {/* 액션 버튼들 (hover 시 표시) */}
+            <div className={`absolute top-2 flex items-center gap-1  right-2`}>
+                {/* 수정 버튼 */}
+                <button
+                    onClick={handleEditClick}
+                    className="p-1.5 rounded-md bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="수정"
+                >
+                    <Edit size={14} />
+                </button>
+
+                {/* 삭제 버튼 */}
+                <button
+                    onClick={handleDeleteClick}
+                    className="p-1.5 rounded-md bg-gray-100 text-gray-400 hover:bg-red-100 hover:text-red-600 transition-colors opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="삭제"
+                >
+                    <Trash2 size={14} />
+                </button>
+
+                {/* 고정 버튼 (고정되지 않은 세션만 hover 시 표시) */}
+                {(
+                    <button
+                        onClick={handlePinClick}
+                        className="p-1.5 rounded-md bg-gray-100 text-gray-400 hover:bg-gray-200 hover:text-gray-600 transition-colors opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="고정"
+                    >
+                        <Pin size={14} />
+                    </button>
+                )}
+            </div>
         </div>
     );
 });

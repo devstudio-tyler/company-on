@@ -59,30 +59,35 @@ class ChatSessionRequest(BaseModel):
 
 
 class ChatSessionCreateRequest(BaseModel):
-    """채팅 세션 생성 요청 (기존 호환성)"""
-    client_id: str
-    title: Optional[str] = None
+    """채팅 세션 생성 요청"""
+    title: str
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
 
 
 class ChatSessionUpdateRequest(BaseModel):
     """채팅 세션 업데이트 요청"""
     title: Optional[str] = None
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
+    is_pinned: Optional[bool] = None
 
 
 class ChatSessionSearchRequest(BaseModel):
     """채팅 세션 검색 요청"""
     query: Optional[str] = None
     client_id: Optional[str] = None
+    tags: Optional[List[str]] = None
+    status: Optional[str] = None
     page: int = 1
     size: int = 20
 
 
-class ChatSessionStatus(BaseModel):
+class ChatSessionStatus(str, Enum):
     """채팅 세션 상태"""
-    session_id: str
-    status: str
-    message_count: int
-    last_activity: datetime
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+    ARCHIVED = "archived"
 
 
 class ChatSessionResponse(BaseModel):
@@ -90,6 +95,9 @@ class ChatSessionResponse(BaseModel):
     session_id: str
     client_id: str
     title: str
+    description: Optional[str] = None
+    tags: Optional[List[str]] = None
+    is_pinned: Optional[bool] = False
     created_at: datetime
     updated_at: datetime
     message_count: int

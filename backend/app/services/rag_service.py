@@ -45,8 +45,13 @@ class RAGService:
     ) -> RAGResponse:
         """RAG 기반 답변 생성"""
         try:
-            # 1. 하이브리드 검색 수행
-            search_results = await self._perform_search(request.query, request.max_results, db)
+            # DEBUG 모드일 때 검색 과정 생략
+            if self.llm_service.debug_mode:
+                logger.info("DEBUG 모드: 검색 과정 생략, 더미 응답 생성")
+                search_results = []
+            else:
+                # 1. 하이브리드 검색 수행
+                search_results = await self._perform_search(request.query, request.max_results, db)
             
             # 2. 대화 히스토리 가져오기
             conversation_history = []
@@ -86,9 +91,14 @@ class RAGService:
         try:
             logger.info(f"RAG 스트리밍 답변 생성 시작: query={request.query}")
             
-            # 1. 하이브리드 검색 수행
-            search_results = await self._perform_search(request.query, request.max_results, db)
-            logger.info(f"검색 완료: {len(search_results)}개 결과")
+            # DEBUG 모드일 때 검색 과정 생략
+            if self.llm_service.debug_mode:
+                logger.info("DEBUG 모드: 검색 과정 생략, 더미 스트리밍 응답 생성")
+                search_results = []
+            else:
+                # 1. 하이브리드 검색 수행
+                search_results = await self._perform_search(request.query, request.max_results, db)
+                logger.info(f"검색 완료: {len(search_results)}개 결과")
             
             # 2. 대화 히스토리 가져오기
             conversation_history = []

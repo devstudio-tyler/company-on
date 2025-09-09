@@ -1,5 +1,6 @@
 'use client';
 
+import { getSessionMessages, updateSessionTitle } from '@/lib/api/sessions';
 import { getClientId } from '@/lib/utils';
 import { useCallback, useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
@@ -14,6 +15,8 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
   const [messages, setMessages] = useState<ChatMessageData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(sessionId || null);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   // SSE 연결을 위한 EventSource 관리
   const [eventSource, setEventSource] = useState<EventSource | null>(null);
@@ -27,19 +30,110 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
     };
   }, [eventSource]);
 
+  // 세션별 메시지 로딩
+  const loadSessionMessages = useCallback(async (sessionId: string) => {
+    if (!sessionId) return;
+
+    try {
+      setIsLoadingMessages(true);
+      const response = await getSessionMessages(sessionId);
+
+      // API 응답을 ChatMessageData 형식으로 변환
+      const loadedMessages: ChatMessageData[] = response.messages.map(msg => ({
+        id: msg.id,
+        content: msg.content,
+        isUser: msg.is_user,
+        timestamp: new Date(msg.created_at),
+        sources: msg.sources || [],
+        feedback: undefined, // API에서 피드백 정보가 없으므로 undefined
+        isStreaming: false
+      }));
+
+      setMessages(loadedMessages);
+    } catch (error) {
+      console.error('메시지 로딩 실패:', error);
+      // 404 오류는 새 세션이므로 빈 메시지 배열로 초기화
+      if (error instanceof Error && error.message.includes('404')) {
+        console.log('새 세션으로 인식하여 메시지를 빈 배열로 초기화');
+        setMessages([]);
+      } else {
+        setMessages([]);
+      }
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  }, []);
+
+  // sessionId prop이 변경될 때 currentSessionId 업데이트
+  useEffect(() => {
+    setCurrentSessionId(sessionId || null);
+  }, [sessionId]);
+
+  // 세션 ID가 변경될 때 메시지 로딩
+  useEffect(() => {
+    if (currentSessionId) {
+      loadSessionMessages(currentSessionId);
+    } else {
+      setMessages([]);
+    }
+  }, [currentSessionId, loadSessionMessages]);
+
+  // 첫 메시지 기반으로 세션 제목 자동 생성
+  const generateSessionTitle = useCallback((firstMessage: string): string => {
+    // 메시지가 너무 길면 앞부분만 사용
+    const truncatedMessage = firstMessage.length > 30 ? firstMessage.substring(0, 30) + '...' : firstMessage;
+    return truncatedMessage;
+  }, []);
+
+  // 세션 제목 업데이트
+  const updateSessionTitleFromMessage = useCallback(async (sessionId: string, message: string) => {
+    try {
+      const newTitle = generateSessionTitle(message);
+      const clientId = getClientId();
+      await updateSessionTitle(sessionId, newTitle, clientId);
+
+      // 부모 컴포넌트에 세션 업데이트 알림 (Layout에서 처리)
+      window.dispatchEvent(new CustomEvent('sessionUpdated', {
+        detail: { sessionId, title: newTitle }
+      }));
+    } catch (error) {
+      console.error('세션 제목 업데이트 실패:', error);
+    }
+  }, [generateSessionTitle]);
+
   // 스트리밍 메시지 전송 처리
   const handleSendMessage = useCallback(async (content: string) => {
+    // 중복 전송 방지
+    if (isSendingMessage) {
+      console.log('메시지 전송 중이므로 무시합니다.');
+      return;
+    }
+
+    setIsSendingMessage(true);
     const clientId = getClientId();
+    let sessionId = currentSessionId;
 
-    // 사용자 메시지 즉시 추가
-    const userMessage: ChatMessageData = {
-      id: `user-${Date.now()}`,
-      content,
-      isUser: true,
-      timestamp: new Date(),
-    };
+    // 세션이 없는 경우 자동으로 새 세션 생성
+    if (!sessionId) {
+      try {
+        const { createNewSession } = await import('@/lib/api/sessions');
+        const newSession = await createNewSession(clientId, `${new Date().toLocaleDateString('ko-KR')}의 새 채팅`);
+        sessionId = newSession.id;
+        setCurrentSessionId(sessionId);
 
-    setMessages(prev => [...prev, userMessage]);
+        // 부모 컴포넌트에 새 세션 알림
+        window.dispatchEvent(new CustomEvent('sessionCreated', {
+          detail: { session: newSession }
+        }));
+      } catch (error) {
+        console.error('자동 세션 생성 실패:', error);
+        alert('세션 생성에 실패했습니다.');
+        setIsSendingMessage(false);
+        return;
+      }
+    }
+
+    // 로딩 상태 시작 (메시지는 답변 완성 시점에 추가)
     setIsLoading(true);
 
     // AI 응답 메시지를 위한 임시 ID
@@ -51,7 +145,7 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
         url: '/api/v1/chat/messages/stream',
         clientId,
         content,
-        sessionId: currentSessionId
+        sessionId
       });
 
       const response = await fetch('/api/v1/chat/messages/stream', {
@@ -63,7 +157,7 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
         body: JSON.stringify({
           client_id: clientId,
           content,
-          session_id: currentSessionId,
+          session_id: sessionId,
           max_results: 5,
           include_history: true,
         }),
@@ -163,23 +257,23 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
                   // 즉시 상태 업데이트 (React 배칭 방지 - flushSync 사용)
                   flushSync(() => {
                     setMessages(prev => {
-                      const updated = prev.map(msg =>
-                        msg.id === aiMessageId
-                          ? { ...msg, content: msg.content + parsed.content }
-                          : msg
-                      );
-                      // 강제 리렌더링을 위한 새 배열 반환
-                      return [...updated];
+                      const newMessages = [...prev];
+                      const messageIndex = newMessages.findIndex(msg => msg.id === aiMessageId);
+                      if (messageIndex !== -1) {
+                        newMessages[messageIndex] = {
+                          ...newMessages[messageIndex],
+                          content: newMessages[messageIndex].content + parsed.content
+                        };
+                      }
+                      return newMessages;
                     });
                   });
 
-                  // 스크롤을 맨 아래로 (실시간 스크롤)
-                  setTimeout(() => {
-                    const chatContainer = document.querySelector('[data-chat-list]');
-                    if (chatContainer) {
-                      chatContainer.scrollTop = chatContainer.scrollHeight;
-                    }
-                  }, 0);
+                  // 즉시 스크롤 업데이트 (flushSync 후)
+                  const chatContainer = document.querySelector('[data-chat-list]');
+                  if (chatContainer) {
+                    chatContainer.scrollTop = chatContainer.scrollHeight;
+                  }
                 } else if (parsed.type === 'sources') {
                   // 출처 정보 업데이트
                   setMessages(prev =>
@@ -190,14 +284,25 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
                     )
                   );
                 } else if (parsed.type === 'complete') {
-                  // 스트리밍 완료
-                  setMessages(prev =>
-                    prev.map(msg =>
+                  // 스트리밍 완료 - 사용자 메시지와 AI 메시지 모두 추가
+                  const userMessage: ChatMessageData = {
+                    id: `user-${Date.now()}`,
+                    content,
+                    isUser: true,
+                    timestamp: new Date(),
+                  };
+
+                  setMessages(prev => {
+                    // 기존 AI 메시지 업데이트
+                    const updatedMessages = prev.map(msg =>
                       msg.id === aiMessageId
                         ? { ...msg, isStreaming: false }
                         : msg
-                    )
-                  );
+                    );
+
+                    // 사용자 메시지를 AI 메시지 앞에 추가
+                    return [userMessage, ...updatedMessages];
+                  });
 
                   // 메시지 ID 업데이트 (백엔드에서 실제 저장된 ID)
                   if (parsed.message_id) {
@@ -208,6 +313,21 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
                           : msg
                       )
                     );
+                  }
+
+                  // 메시지 전송 완료
+                  setIsSendingMessage(false);
+
+                  // 첫 메시지인 경우 응답 내용으로 세션 제목 업데이트
+                  if (currentSessionId && messages.length === 1) {
+                    const aiMessage = messages.find(msg => msg.id === aiMessageId);
+                    if (aiMessage && aiMessage.content) {
+                      // 응답 내용을 간단히 요약하여 제목으로 설정
+                      const summary = aiMessage.content.length > 50
+                        ? aiMessage.content.substring(0, 50) + '...'
+                        : aiMessage.content;
+                      updateSessionTitleFromMessage(currentSessionId, summary);
+                    }
                   }
                   return;
                 } else if (parsed.type === 'error') {
@@ -239,8 +359,19 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
           name: streamError instanceof Error ? streamError.name : undefined
         });
 
-        // 스트리밍 메시지가 추가된 경우 제거
-        setMessages(prev => prev.filter(msg => msg.id !== aiMessageId));
+        // 사용자 메시지 추가
+        const userMessage: ChatMessageData = {
+          id: `user-${Date.now()}`,
+          content,
+          isUser: true,
+          timestamp: new Date(),
+        };
+
+        // 스트리밍 메시지가 추가된 경우 제거하고 사용자 메시지 추가
+        setMessages(prev => {
+          const filteredMessages = prev.filter(msg => msg.id !== aiMessageId);
+          return [userMessage, ...filteredMessages];
+        });
 
         // 스트림 오류 메시지 추가
         const streamErrorMessage: ChatMessageData = {
@@ -251,6 +382,7 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
         };
 
         setMessages(prev => [...prev, streamErrorMessage]);
+        setIsSendingMessage(false);
         return;
       }
 
@@ -262,8 +394,19 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
         name: error instanceof Error ? error.name : undefined
       });
 
-      // 스트리밍 메시지가 추가된 경우 제거
-      setMessages(prev => prev.filter(msg => msg.id !== aiMessageId));
+      // 사용자 메시지 추가
+      const userMessage: ChatMessageData = {
+        id: `user-${Date.now()}`,
+        content,
+        isUser: true,
+        timestamp: new Date(),
+      };
+
+      // 스트리밍 메시지가 추가된 경우 제거하고 사용자 메시지 추가
+      setMessages(prev => {
+        const filteredMessages = prev.filter(msg => msg.id !== aiMessageId);
+        return [userMessage, ...filteredMessages];
+      });
 
       // 에러 메시지 추가 (더 자세한 정보 포함)
       const errorMessage: ChatMessageData = {
@@ -276,8 +419,9 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
       setMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
+      setIsSendingMessage(false);
     }
-  }, [currentSessionId]);
+  }, [currentSessionId, isSendingMessage]);
 
   // 피드백 처리
   const handleFeedback = useCallback(async (messageId: string, feedback: 'up' | 'down', comment?: string) => {
@@ -317,12 +461,12 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
     <div className="h-full flex flex-col bg-gray-50">
       <ChatList
         messages={messages}
-        isLoading={isLoading}
+        isLoading={isLoading || isLoadingMessages}
         onFeedback={handleFeedback}
       />
       <ChatInput
         onSendMessage={handleSendMessage}
-        disabled={isLoading}
+        disabled={isLoading || isLoadingMessages}
       />
     </div>
   );

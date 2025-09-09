@@ -39,6 +39,10 @@ class LLMService:
         self.config = LLMConfig()
         self.system_prompt = self._get_system_prompt()
         
+        # DEBUG 모드 설정
+        self.debug_mode = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
+        logger.info(f"DEBUG 모드: {self.debug_mode}")
+        
         # OpenRouter 설정 (OpenAI 호환 API)
         api_key = os.getenv("OPENROUTER_API_KEY")
         base_url = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
@@ -77,6 +81,16 @@ class LLMService:
         conversation_history: List[Dict[str, str]] = None
     ) -> LLMResponse:
         """RAG 기반 응답 생성"""
+        # DEBUG 모드일 때 더미 응답 반환
+        if self.debug_mode:
+            logger.info("DEBUG 모드: 더미 응답 생성")
+            return LLMResponse(
+                content=self._generate_dummy_response(),
+                usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+                model="debug-dummy",
+                finish_reason="debug_mode"
+            )
+        
         if not self.client:
             return LLMResponse(
                 content="OpenRouter API 키가 설정되지 않았습니다. 관리자에게 문의하세요.",
@@ -129,6 +143,13 @@ class LLMService:
         conversation_history: List[Dict[str, str]] = None
     ) -> AsyncGenerator[str, None]:
         """스트리밍 응답 생성"""
+        # DEBUG 모드일 때 더미 스트리밍 응답 반환
+        if self.debug_mode:
+            logger.info("DEBUG 모드: 더미 스트리밍 응답 생성")
+            async for chunk in self._stream_dummy_response():
+                yield chunk
+            return
+        
         if not self.client:
             yield "OpenRouter API 키가 설정되지 않았습니다. 관리자에게 문의하세요."
             return
@@ -241,6 +262,40 @@ class LLMService:
         })
         
         return messages
+
+    def _generate_dummy_response(self) -> str:
+        """DEBUG 모드용 더미 응답 생성"""
+        dummy_responses = [
+            "안녕하세요! DEBUG 모드에서 테스트 응답을 보내드리고 있습니다.",
+            "현재 시스템이 정상적으로 작동하고 있으며, 스트리밍 기능도 잘 동작합니다.",
+            "이 응답은 실제 LLM 호출 없이 생성된 더미 데이터입니다.",
+            "DEBUG 모드를 비활성화하면 실제 문서 검색과 AI 생성이 수행됩니다.",
+            "테스트가 완료되면 실제 환경에서 정상적인 RAG 기능을 사용할 수 있습니다."
+        ]
+        return "\n\n".join(dummy_responses)
+
+    async def _stream_dummy_response(self) -> AsyncGenerator[str, None]:
+        """DEBUG 모드용 더미 스트리밍 응답"""
+        dummy_responses = [
+            "안녕하세요! DEBUG 모드에서 테스트 응답을 보내드리고 있습니다.",
+            "현재 시스템이 정상적으로 작동하고 있으며, 스트리밍 기능도 잘 동작합니다.",
+            "이 응답은 실제 LLM 호출 없이 생성된 더미 데이터입니다.",
+            "DEBUG 모드를 비활성화하면 실제 문서 검색과 AI 생성이 수행됩니다.",
+            "테스트가 완료되면 실제 환경에서 정상적인 RAG 기능을 사용할 수 있습니다."
+        ]
+        
+        for i, response in enumerate(dummy_responses):
+            # 각 문장을 단어별로 스트리밍
+            words = response.split()
+            for j, word in enumerate(words):
+                yield word + " "
+                # 매우 빠른 타이핑 효과를 위한 지연 (20ms로 단축)
+                await asyncio.sleep(0.02)
+            
+            # 문장 끝에 줄바꿈 추가 (마지막 문장 제외)
+            if i < len(dummy_responses) - 1:
+                yield "\n\n"
+                await asyncio.sleep(0.05)
 
     async def test_connection(self) -> bool:
         """OpenRouter API 연결 테스트"""

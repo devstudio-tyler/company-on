@@ -23,7 +23,8 @@ const SessionModal = memo(function SessionModal({
         title: session?.title || '',
         description: session?.description || '',
         tags: session?.tags || [],
-        is_pinned: session?.is_pinned || false
+        is_pinned: session?.is_pinned || false,
+        client_id: session?.client_id || ''
     });
     const [newTag, setNewTag] = useState('');
 
@@ -71,7 +72,8 @@ const SessionModal = memo(function SessionModal({
             title: '',
             description: '',
             tags: [],
-            is_pinned: false
+            is_pinned: false,
+            client_id: ''
         });
         setNewTag('');
         onClose();

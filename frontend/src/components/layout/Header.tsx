@@ -1,14 +1,14 @@
 'use client';
 
 import { ChatSession } from '@/types';
-import { Menu, MessageSquare, Upload } from 'lucide-react';
+import { Menu, MessageSquare } from 'lucide-react';
 import React, { useState } from 'react';
 
 interface HeaderProps {
     currentSession?: ChatSession;
     onSearch: (query: string) => void;
     onMenuToggle: () => void;
-    onUpload?: () => void;
+    onUpload: () => void;
     className?: string;
 }
 
@@ -56,18 +56,6 @@ export default function Header({
                     )}
                 </div>
 
-                {/* 오른쪽: 업로드만 남김 */}
-                <div className="flex items-center gap-2">
-                    {onUpload && (
-                        <button
-                            onClick={onUpload}
-                            className="inline-flex items-center h-8 px-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                        >
-                            <Upload size={16} className="mr-2" />
-                            업로드
-                        </button>
-                    )}
-                </div>
             </div>
         </header>
     );

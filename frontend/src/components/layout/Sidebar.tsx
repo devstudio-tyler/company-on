@@ -22,7 +22,7 @@ interface SidebarProps {
     className?: string;
 }
 
-export default function SessionSidebar({
+function SessionSidebar({
     sessions,
     currentSessionId,
     onSessionSelect,
@@ -237,3 +237,4 @@ export default function SessionSidebar({
 }
 
 export { SessionSidebar };
+export default SessionSidebar;

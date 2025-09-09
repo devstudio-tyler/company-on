@@ -40,6 +40,8 @@ interface DocumentSidebarProps {
     onModeChange?: (mode: 'session' | 'document') => void;
     currentMode?: 'session' | 'document';
     className?: string;
+    isLoading?: boolean;
+    isInitialLoad?: boolean;
 }
 
 const DocumentSidebar = memo(function DocumentSidebar({
@@ -51,7 +53,9 @@ const DocumentSidebar = memo(function DocumentSidebar({
     onPreview,
     onModeChange,
     currentMode = 'document',
-    className = ''
+    className = '',
+    isLoading = false,
+    isInitialLoad = false
 }: DocumentSidebarProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -204,7 +208,15 @@ const DocumentSidebar = memo(function DocumentSidebar({
             {/* 문서 목록 */}
             <div className="flex-1 overflow-y-auto">
                 <div className="p-2">
-                    {filteredDocuments.length === 0 ? (
+                    {isLoading && isInitialLoad ? (
+                        <div className="text-center text-gray-500 py-8">
+                            <RefreshCw size={32} className="mx-auto mb-2 text-gray-400 animate-spin" />
+                            <div className="text-sm">문서를 불러오는 중...</div>
+                            <div className="text-xs text-gray-400 mt-1">
+                                잠시만 기다려주세요
+                            </div>
+                        </div>
+                    ) : filteredDocuments.length === 0 ? (
                         <div className="text-center text-gray-500 py-8">
                             <FileText size={32} className="mx-auto mb-2 text-gray-400" />
                             <div className="text-sm">문서가 없습니다</div>
@@ -317,15 +329,6 @@ const DocumentSidebar = memo(function DocumentSidebar({
             </div>
 
             {/* 하단 링크 */}
-            <div className="p-3 border-t border-gray-200">
-                <a
-                    href="/documents"
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
-                >
-                    <FileText size={14} />
-                    전체 문서 관리
-                </a>
-            </div>
         </div>
     );
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { getSessionMessages, updateSessionTitle, type ChatMessage } from '@/lib/api/sessions';
+import { getSessionMessages, updateMessageFeedback, updateSessionTitle, type ChatMessage } from '@/lib/api/sessions';
 import { getClientId } from '@/lib/utils';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ChatInput from './ChatInput';
@@ -57,7 +57,7 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
     // 세션 메시지를 ChatMessageData 형식으로 변환
     const convertSessionMessagesToChatData = useCallback((messages: ChatMessage[]): ChatMessageData[] => {
         return messages.map(msg => ({
-            id: `session-${msg.message_id}`, // 세션 메시지임을 명시하고 고유성 보장
+            id: `session-${msg.id}`, // API 매핑 후 통일된 id 사용
             content: msg.content,
             isUser: msg.is_user,
             timestamp: new Date(msg.created_at),
@@ -476,9 +476,28 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
         }
     }, [currentSessionId, isSendingMessage, updateStreamingContent, updateSessionTitleFromMessage, messages.length]);
 
+    // 메시지 피드백 처리
+    const handleMessageFeedback = useCallback(async (messageId: string, feedback: 'up' | 'down', comment?: string) => {
+        try {
+            // 아직 DB에 저장되지 않은 임시 메시지(예: 'ai-')는 차단
+            if (messageId.startsWith('ai-') || messageId.startsWith('user-')) {
+                alert('아직 저장되지 않은 메시지입니다. 응답이 완료된 후 다시 시도해주세요.');
+                return;
+            }
+            // 세션에서 불러온 메시지는 id에 접두사 'session-'이 있음 → 제거
+            const backendId = messageId.startsWith('session-') ? messageId.replace('session-', '') : messageId;
+            await updateMessageFeedback(backendId, feedback, comment);
+            // 성공 시 로컬 상태 업데이트
+            setMessages(prev => prev.map(m => m.id === messageId ? { ...m, feedback } : m));
+        } catch (e) {
+            console.error('피드백 업데이트 실패:', e);
+            alert('피드백 저장에 실패했습니다. 잠시 후 다시 시도해주세요.');
+        }
+    }, []);
+
     return (
         <div className="flex flex-col h-full">
-            <ChatList messages={messages} isLoading={isLoading} />
+            <ChatList messages={messages} isLoading={isLoading} onFeedback={handleMessageFeedback} />
             <ChatInput onSendMessage={handleSendMessage} disabled={isSendingMessage} />
         </div>
     );

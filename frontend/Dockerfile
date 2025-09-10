@@ -15,9 +15,9 @@ COPY . .
 # 포트 노출
 EXPOSE 3000
 
-# 헬스체크 추가
+# 헬스체크 추가 - curl이 없으므로 wget 사용
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000 || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3000 || exit 1
 
 # 애플리케이션 실행
 CMD ["npm", "run", "dev"]

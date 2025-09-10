@@ -1,10 +1,15 @@
 # 인프라 설정 세부 가이드
 
 ## 🎯 인프라 설정 목표
-- 로컬 개발 환경 구축
-- 모든 서비스가 Docker로 정상 기동
-- 데이터베이스 스키마 생성 완료
-- 개발 도구 및 환경 설정 완료
+- 로컬 개발 환경 구축 ✅
+- 모든 서비스가 Docker로 정상 기동 ✅
+- 데이터베이스 스키마 생성 완료 ✅
+- 개발 도구 및 환경 설정 완료 ✅
+- **Celery 백그라운드 워커 설정 완료** ✅
+- **문서 처리 파이프라인 자동화** ✅
+- **하이브리드 검색 시스템 구현** ✅
+- **SSE 실시간 알림 시스템 구현** ✅
+
 
 ---
 
@@ -73,7 +78,7 @@ services:
     image: minio/minio:latest
     environment:
       MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin123
+      MINIO_ROOT_PASSWORD: minioadmin
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -92,7 +97,12 @@ services:
       - REDIS_URL=redis://redis:6379
       - MINIO_ENDPOINT=minio:9000
       - MINIO_ACCESS_KEY=minioadmin
-      - MINIO_SECRET_KEY=minioadmin123
+      - MINIO_SECRET_KEY=minioadmin
+      # LLM 설정 예시
+      - LLM_PROVIDER=openrouter
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+      - GEMMA_MODEL=google/gemma-3-12b-it:free
     depends_on:
       - postgres
       - redis
@@ -403,13 +413,20 @@ docker-compose ps
 
 # 로그 확인
 docker-compose logs backend
-docker-compose logs frontend
+docker-compose logs celery-worker
+docker-compose logs celery-beat
 
 # 데이터베이스 연결 테스트
 docker-compose exec postgres psql -U ragbot_user -d ragbot -c "\dt"
 
 # API 테스트
 curl http://localhost:8000/health
+
+# Celery 워커 상태 확인
+curl http://localhost:5555/api/workers
+
+# 문서 처리 파이프라인 테스트
+curl -X POST "http://localhost:8000/api/v1/documents/processing/stats"
 ```
 
 ---

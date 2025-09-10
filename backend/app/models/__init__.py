@@ -3,6 +3,7 @@
 """
 from .chat import ChatSession, ChatMessage, ChatSessionEmbedding
 from .document import Document, DocumentChunk, EmbeddingCache
+from .upload_session import UploadSession
 
 __all__ = [
     "ChatSession",
@@ -10,5 +11,6 @@ __all__ = [
     "ChatSessionEmbedding",
     "Document",
     "DocumentChunk",
-    "EmbeddingCache"
+    "EmbeddingCache",
+    "UploadSession"
 ]

@@ -18,6 +18,7 @@ class ChatSession(Base):
     id = Column(BigInteger, primary_key=True, index=True)
     client_id = Column(UUID(as_uuid=True), nullable=False, index=True)
     title = Column(String(255), nullable=True)
+    description = Column(Text, nullable=True)
     summary = Column(Text, nullable=True)
     tags = Column(JSONB, nullable=True)  # JSON 형태로 저장
     is_pinned = Column(String(10), default='false')  # 'true'|'false'
@@ -45,6 +46,9 @@ class ChatMessage(Base):
     session_id = Column(BigInteger, ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=False)
     role = Column(String(20), nullable=False)  # 'user'|'assistant'|'system'
     content = Column(Text, nullable=False)
+    sources = Column(JSONB, nullable=True)  # 참조 문서 정보 (JSON 형태)
+    usage = Column(JSONB, nullable=True)  # LLM 사용량 정보 (JSON 형태)
+    model = Column(String(100), nullable=True)  # 사용된 모델명
     feedback = Column(String(10), nullable=True)  # 'up'|'down'|'none'
     feedback_comment = Column(Text, nullable=True)
     parent_id = Column(BigInteger, nullable=True)  # 향후 스레딩용

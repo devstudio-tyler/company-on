@@ -22,6 +22,9 @@ class Document(Base):
     file_size = Column(BigInteger, nullable=False)
     content_type = Column(String(100), nullable=False)
     status = Column(String(20), default='processing')  # 'processing'|'completed'|'failed'
+    error_message = Column(Text, nullable=True)  # 처리 실패 시 오류 메시지
+    failure_type = Column(String(20), nullable=True)  # upload_failed, processing_failed
+    retryable = Column(Boolean, default=True, nullable=False)  # 재처리 가능 여부
     document_metadata = Column(JSONB, nullable=True)  # JSON 형태로 저장
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
@@ -46,8 +49,9 @@ class DocumentChunk(Base):
     document_id = Column(BigInteger, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     chunk_index = Column(Integer, nullable=False)  # 청크 순서
     content = Column(Text, nullable=False)
-    embedding = Column(Vector(768), nullable=False)
-    chunk_metadata = Column(JSONB, nullable=True)  # JSON 형태로 저장 (페이지 번호 등)
+    embedding = Column(Vector(384), nullable=False)
+    chunk_type = Column(String(50), nullable=False, default='text')  # 'text', 'table_row', 'excel_sheet', 'image_text' 등
+    chunk_metadata = Column(JSONB, nullable=True)  # JSON 형태로 저장 (페이지 번호, 시트명, 행 번호 등)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # 관계 설정
@@ -69,7 +73,7 @@ class EmbeddingCache(Base):
     
     id = Column(BigInteger, primary_key=True, index=True)
     content_hash = Column(String(64), unique=True, nullable=False, index=True)
-    embedding = Column(Vector(768), nullable=False)
+    embedding = Column(Vector(384), nullable=False)
     model_name = Column(String(100), nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     

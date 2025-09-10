@@ -45,6 +45,7 @@ from ....schemas.chat import (
     RAGTestResponse
 )
 from ....models.chat import ChatSession, ChatMessage
+from sqlalchemy import func, and_
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -473,6 +474,85 @@ async def get_message_feedback(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"피드백 조회 실패: {str(e)}")
 
+
+# =========================
+# 피드백 통계 API
+# =========================
+
+@router.get("/chat/feedback/stats")
+async def get_feedback_stats_overall(
+    client_id: str = Depends(get_client_id),
+    db: Session = Depends(get_db)
+):
+    """해당 클라이언트의 모든 세션을 대상으로 한 피드백 통계(assistant 메시지 기준)."""
+    try:
+        # 클라이언트 소유 세션 ID 서브쿼리
+        session_ids_subq = db.query(ChatSession.id).filter(ChatSession.client_id == client_id).subquery()
+
+        base_q = db.query(ChatMessage).filter(
+            and_(ChatMessage.session_id.in_(session_ids_subq), ChatMessage.role == 'assistant')
+        )
+
+        total = base_q.count()
+        up = base_q.filter(ChatMessage.feedback == 'up').count()
+        down = base_q.filter(ChatMessage.feedback == 'down').count()
+        none = total - up - down
+        rate_up = (up / total) if total else 0.0
+        rate_down = (down / total) if total else 0.0
+
+        return {
+            "scope": "overall",
+            "total": total,
+            "up": up,
+            "down": down,
+            "none": none,
+            "rate_up": rate_up,
+            "rate_down": rate_down
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"피드백 통계 조회 실패: {str(e)}")
+
+
+@router.get("/chat/sessions/{session_id}/feedback/stats")
+async def get_feedback_stats_by_session(
+    session_id: str,
+    client_id: str = Depends(get_client_id),
+    db: Session = Depends(get_db)
+):
+    """특정 세션의 피드백 통계(assistant 메시지 기준)."""
+    try:
+        # 세션 소유권 확인
+        session = db.query(ChatSession).filter(
+            and_(ChatSession.id == int(session_id), ChatSession.client_id == client_id)
+        ).first()
+        if not session:
+            raise HTTPException(status_code=404, detail="세션을 찾을 수 없거나 권한이 없습니다")
+
+        base_q = db.query(ChatMessage).filter(
+            and_(ChatMessage.session_id == int(session_id), ChatMessage.role == 'assistant')
+        )
+
+        total = base_q.count()
+        up = base_q.filter(ChatMessage.feedback == 'up').count()
+        down = base_q.filter(ChatMessage.feedback == 'down').count()
+        none = total - up - down
+        rate_up = (up / total) if total else 0.0
+        rate_down = (down / total) if total else 0.0
+
+        return {
+            "scope": "session",
+            "session_id": session_id,
+            "total": total,
+            "up": up,
+            "down": down,
+            "none": none,
+            "rate_up": rate_up,
+            "rate_down": rate_down
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"피드백 통계 조회 실패: {str(e)}")
 
 @router.get("/chat/test", response_model=RAGTestResponse)
 async def test_rag_pipeline(db: Session = Depends(get_db)):

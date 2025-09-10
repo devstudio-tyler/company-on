@@ -28,6 +28,8 @@ interface Document {
     error_message?: string;
     chunk_count?: number;
     embedding_count?: number;
+    failure_type?: 'upload_failed' | 'processing_failed';
+    retryable?: boolean;
 }
 
 interface DocumentListProps {
@@ -283,7 +285,7 @@ const DocumentList = memo(function DocumentList({
                                         다운로드
                                     </button>
 
-                                    {document.status === 'failed' && (
+                                    {document.status === 'failed' && document.retryable && (
                                         <button
                                             onClick={() => onRetry(document.id)}
                                             className="inline-flex items-center px-2 py-1 text-xs text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded"
@@ -291,6 +293,13 @@ const DocumentList = memo(function DocumentList({
                                             <RefreshCw size={12} className="mr-1" />
                                             재시도
                                         </button>
+                                    )}
+
+                                    {document.status === 'failed' && !document.retryable && (
+                                        <span className="inline-flex items-center px-2 py-1 text-xs text-gray-400">
+                                            <RefreshCw size={12} className="mr-1" />
+                                            재처리 불가
+                                        </span>
                                     )}
 
                                     <button

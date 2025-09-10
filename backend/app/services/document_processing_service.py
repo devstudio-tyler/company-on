@@ -94,7 +94,10 @@ class DocumentProcessingService:
             
         except Exception as e:
             logger.error(f"문서 처리 파이프라인 실패: {upload_id}, 에러: {str(e)}")
-            await self._update_upload_status(upload_id, "failed", f"처리 실패: {str(e)}")
+            
+            # 실패 유형에 따른 처리
+            failure_type = self._determine_failure_type(e)
+            await self._handle_processing_failure(upload_id, str(e), failure_type)
             raise
     
     def _get_upload_session(self, upload_id: str) -> Optional[UploadSession]:
@@ -396,6 +399,54 @@ class DocumentProcessingService:
             "status": upload_session.status,
             "document_id": upload_session.document_id,
             "error_message": upload_session.error_message,
+            "failure_type": upload_session.failure_type,
+            "retryable": upload_session.retryable,
             "created_at": upload_session.created_at,
             "updated_at": upload_session.updated_at
         }
+    
+    def _determine_failure_type(self, error: Exception) -> str:
+        """실패 유형 결정"""
+        error_str = str(error).lower()
+        
+        # 업로드 관련 실패 (재처리 불가능)
+        if any(keyword in error_str for keyword in [
+            "file not found", "upload failed", "minio", "network", 
+            "connection", "timeout", "file size", "unsupported format"
+        ]):
+            return "upload_failed"
+        
+        # 프로세싱 관련 실패 (재처리 가능)
+        return "processing_failed"
+    
+    async def _handle_processing_failure(
+        self, 
+        upload_id: str, 
+        error_message: str, 
+        failure_type: str
+    ):
+        """처리 실패 처리"""
+        try:
+            from .upload_session_service import UploadSessionService
+            from .document_service import DocumentService
+            
+            upload_service = UploadSessionService(self.db)
+            document_service = DocumentService(self.db)
+            
+            # 업로드 세션 실패 처리
+            upload_service.fail_upload(upload_id, error_message, failure_type)
+            
+            # 문서가 생성된 경우 문서도 실패 처리
+            upload_session = self._get_upload_session(upload_id)
+            if upload_session and upload_session.document_id:
+                document_service.fail_document(
+                    upload_session.document_id, 
+                    error_message, 
+                    failure_type
+                )
+            
+            # SSE로 실패 알림
+            await sse_service.broadcast_upload_status_change(upload_id, "failed")
+            
+        except Exception as e:
+            logger.error(f"실패 처리 중 오류 발생: {upload_id}, 에러: {str(e)}")

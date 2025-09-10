@@ -19,6 +19,8 @@ class UploadSession(Base):
     status = Column(String(20), default='init', nullable=False)  # init, uploading, pending, processing, completed, failed
     document_id = Column(BigInteger, nullable=True)  # Commit 후 연결된 문서 ID
     error_message = Column(String(500), nullable=True)  # 실패 시 에러 메시지
+    failure_type = Column(String(20), nullable=True)  # upload_failed, processing_failed
+    retryable = Column(Boolean, default=True, nullable=False)  # 재처리 가능 여부
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     

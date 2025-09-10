@@ -104,8 +104,8 @@ async def commit_document_upload(
         file_path = f"uploads/{upload_id}/{upload_session.filename}"
         
         if not minio_service.file_exists(file_path):
-            # 업로드 실패 처리
-            upload_service.fail_upload(upload_id, "Uploaded file not found")
+            # 업로드 실패 처리 (재처리 불가능)
+            upload_service.fail_upload(upload_id, "Uploaded file not found", "upload_failed")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Uploaded file not found"

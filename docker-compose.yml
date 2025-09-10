@@ -86,7 +86,7 @@ services:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENROUTER_BASE_URL=${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
       - GEMMA_MODEL=${GEMMA_MODEL:-google/gemma-3-4b-it:free}
-      - DEBUG=True
+      - DEBUG=False
     env_file:
       - .env
     depends_on:

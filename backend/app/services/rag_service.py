@@ -135,7 +135,8 @@ class RAGService:
                 query=query,
                 limit=max_results,
                 alpha=0.7,  # Dense 검색 가중치
-                beta=0.3    # BM25 검색 가중치
+                beta=0.3,   # BM25 검색 가중치
+                threshold=0.6  # 유사도 임계값 (60%)
             )
             
             logger.info(f"검색 결과 수: {len(search_results)}")
@@ -149,18 +150,24 @@ class RAGService:
                 from ..models.document import Document
                 document = db.query(Document).filter(Document.id == result["document_id"]).first()
                 
+                # 파일 확장자 확인
+                filename = result["filename"]
+                is_image = filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'))
+                
                 doc_info = {
                     "title": document.title if document else "제목 없음",
                     "content": result["chunk_text"],
                     "source": f"문서 ID: {result['document_id']}, 청크: {result['id']}",
-                    "score": result.get("combined_score", 0.0),
+                    "score": round(result.get("combined_score", 0.0), 4),  # 소수점 4자리로 반올림
                     "document_id": result["document_id"],
                     "chunk_index": result["id"],
-                    "filename": result["filename"],
+                    "filename": filename,
                     "file_size": document.file_size if document else 0,
                     "created_at": document.created_at.isoformat() if document and document.created_at else None,
                     "download_url": f"/api/v1/documents/{result['document_id']}/download" if document else None,
-                    "preview_url": f"/api/v1/documents/{result['document_id']}/chunks?chunk_index={result['id']}" if document else None
+                    "preview_url": f"/api/v1/documents/{result['document_id']}/chunks?chunk_index={result['id']}" if document else None,
+                    "is_image": is_image,
+                    "image_url": f"/api/v1/documents/{result['document_id']}/download" if is_image and document else None
                 }
                 documents.append(doc_info)
                 logger.info(f"변환된 문서 정보: {doc_info}")

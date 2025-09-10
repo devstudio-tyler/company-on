@@ -124,6 +124,13 @@ async def retry_document_processing(
                 detail="Can only retry failed upload sessions"
             )
         
+        # 재처리 가능 여부 확인
+        if not upload_session.retryable:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This upload session cannot be retried (upload failure)"
+            )
+        
         # 상태를 pending으로 변경
         upload_service.update_upload_session_status(
             upload_id=upload_id,

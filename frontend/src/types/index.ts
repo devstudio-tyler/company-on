@@ -43,6 +43,8 @@ export interface Document {
     client_id: string;
     processing_progress?: number;
     error_message?: string;
+    failure_type?: 'upload_failed' | 'processing_failed';
+    retryable?: boolean;
 }
 
 export interface DocumentSource {

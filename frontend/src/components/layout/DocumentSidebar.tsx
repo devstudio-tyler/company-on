@@ -31,6 +31,8 @@ interface Document {
     error_message?: string;
     chunk_count?: number;
     embedding_count?: number;
+    failure_type?: 'upload_failed' | 'processing_failed';
+    retryable?: boolean;
 }
 
 interface DocumentSidebarProps {
@@ -483,7 +485,7 @@ const DocumentSidebar = memo(function DocumentSidebar({
                                                 <Download size={12} />
                                             </button>
 
-                                            {document.status === 'failed' && (
+                                            {document.status === 'failed' && document.retryable && (
                                                 <button
                                                     onClick={() => onRetry(document.id)}
                                                     className="p-1 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded"
@@ -491,6 +493,15 @@ const DocumentSidebar = memo(function DocumentSidebar({
                                                 >
                                                     <RefreshCw size={12} />
                                                 </button>
+                                            )}
+
+                                            {document.status === 'failed' && !document.retryable && (
+                                                <span
+                                                    className="p-1 text-gray-300"
+                                                    title="재처리 불가능 (업로드 실패)"
+                                                >
+                                                    <RefreshCw size={12} />
+                                                </span>
                                             )}
 
                                             <button

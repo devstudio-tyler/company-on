@@ -1,100 +1,41 @@
-# RAG 기반 문서 검색 및 챗봇 시스템
+# **COMPANY-ON**
+#### 사내 문서 지식 통합의 동반자
 
-## 📚 프로젝트 개요
+## 1. 프로젝트 개요
+분산된 사내 문서 및 사내 지식을 통합하여 불필요한 인적자원 소모를 감축하는 AI 챗봇 COMPANY-ON.
+* 세션 별로 문서 검색 이력을 추적하고 비슷한 지식 검색 이력이 새로운 맥락이 되어 원하는 정보에 더 정확히 접근. 태그, 설명 등으로 이후 원활한 정보 재탐색 지원.
+* 문서 필터링, 백그라운드 프로세싱으로 원활한 문서 관리 경험 지원.
+* PDF, DOCX, XLSX, CSV, PNG, JPG 포맷을 지원하고 질문에 대한 응답으로 미리보기와 응답에 관련된 부분 표시. 문서와 연계되는 검색 경험 지원.
 
-이 프로젝트는 다양한 문서 형식(PDF, DOCX, XLSX, CSV, JPG, PNG)을 업로드하고, AI 기반 임베딩을 통해 벡터 데이터베이스에 저장한 후, 사용자의 질문에 대해 관련 문서를 검색하여 정확한 답변을 제공하는 RAG(Retrieval-Augmented Generation) 시스템입니다.
-
-### 주요 기능
-- 🔄 **다양한 문서 형식 지원**: PDF, DOCX, XLSX, CSV, JPG, PNG
-- 🤖 **OCR 텍스트 추출**: 이미지 파일의 텍스트 인식
-- 📊 **구조화된 데이터 처리**: Excel/CSV 파일의 테이블 형태 처리
-- 🔍 **의미적 검색**: 벡터 임베딩을 활용한 정확한 문서 검색
-- 💬 **실시간 챗봇**: AI 모델 기반 자연어 질의응답
-- 📱 **반응형 웹 인터페이스**: 모던하고 직관적인 사용자 경험
-
-## 🛠 기술 스택 및 선택 이유
-
-### Frontend
-- **Next.js 15.5.2** + **TypeScript**
-  - **선택 이유**: 
-    - Server-Side Rendering을 통한 SEO 최적화 및 빠른 초기 로딩
-    - TypeScript로 타입 안정성 확보
-    - React 18의 최신 기능 활용 (Concurrent Features, Suspense)
-    - API Routes를 통한 백엔드 프록시 설정
-
-- **Tailwind CSS**
-  - **선택 이유**: 
-    - 유틸리티 퍼스트 CSS 프레임워크로 빠른 스타일링
-    - 반응형 디자인 쉬운 구현
-    - 번들 크기 최적화 (사용하지 않는 CSS 자동 제거)
-
-- **Lucide React**
-  - **선택 이유**: 
-    - 경량화된 아이콘 라이브러리
-    - 일관된 디자인 시스템 구축
-
-### Backend
-- **FastAPI** + **Python 3.11**
-  - **선택 이유**: 
-    - 고성능 비동기 웹 프레임워크
-    - 자동 OpenAPI 문서 생성
-    - Pydantic을 통한 데이터 검증
-    - WebSocket 지원으로 실시간 기능 구현
-
-- **PostgreSQL 16** + **pgvector**
-  - **선택 이유**: 
-    - 벡터 데이터베이스 기능 내장 (pgvector extension)
-    - ACID 트랜잭션 지원으로 데이터 일관성 보장
-    - 복잡한 쿼리와 인덱싱 최적화
-    - 대용량 데이터 처리 성능
-
-- **Redis**
-  - **선택 이유**: 
-    - Celery 메시지 브로커로 사용
-    - 세션 및 캐시 스토리지
-    - 고성능 인메모리 데이터베이스
-
-- **MinIO**
-  - **선택 이유**: 
-    - S3 호환 오브젝트 스토리지
-    - 대용량 파일 저장 및 관리
-    - 온프레미스 환경에서 안전한 파일 저장
-
-### AI/ML 모델
-- **SentenceTransformers** (paraphrase-multilingual-MiniLM-L12-v2)
-  - **선택 이유**: 
-    - 다국어 지원 (한국어 포함)
-    - 384차원 벡터로 효율적인 메모리 사용
-    - 문서 검색에 최적화된 성능
-
-- **Google Gemma 3 12B** (via OpenRouter)
-  - **선택 이유**: 
-    - 최신 대규모 언어 모델
-    - 한국어 성능 우수
-    - API 기반으로 인프라 부담 최소화
-    - 추후 Vertex AI로 확장 가능
-
-- **Tesseract OCR**
-  - **선택 이유**: 
-    - 오픈소스 OCR 엔진
-    - 다양한 언어 지원 (한국어 + 영어)
-    - 이미지 품질에 따른 인식률 최적화
-
-### 비동기 작업 처리
-- **Celery** + **Flower**
-  - **선택 이유**: 
-    - 문서 처리 작업의 비동기 처리
-    - 작업 큐 모니터링 및 관리
-    - 확장 가능한 워커 아키텍처
-
-## 🚀 실행 방법
-
-### 사전 요구사항
+## 2. 프로젝트 실행 방법
+#### 사전 요구사항
 - Docker & Docker Compose
 - Node.js 18+ (로컬 프론트엔드 실행 시)
 - Python 3.11+ (로컬 백엔드 실행 시)
 
-### 방법 1: Docker 실행 (개발용 - 느림)
+#### 방법 1 : **권장 실행 환경**
+- **백엔드**는 Docker로 의존성 문제를 최소화하여 실행
+- **프론트엔드**는 빠른 상호작용을 위해 로컬로 실행
+- 준비사항
+    - Node.js 필요
+    - Docker Daemon 활성화 상태에서 진행
+    - 포트 관리에 주의해야 함.
+```bash
+# 1. 백엔드 서비스 시작 (Docker)
+docker-compose up -d postgres redis minio backend celery-worker celery-beat celery-flower
+# Docker 컨테이너 내에서 마이그레이션 실행
+docker-compose exec backend alembic upgrade head
+
+# 2. 프론트엔드 시작 (로컬)
+cd frontend
+npm install
+npm run dev
+
+# 3. 브라우저에서 접속
+open http://localhost:3000
+```
+
+#### 방법 2: Docker 실행
 ```bash
 # 모든 서비스 시작
 docker-compose up -d
@@ -108,10 +49,10 @@ npm install
 npm run dev
 ```
 
-### 방법 2: 로컬 실행 (권장 - 빠름)
+#### 방법 3: 로컬 실행
 Docker 컨테이너에서 실행하면 macOS에서 성능이 크게 저하될 수 있습니다. 로컬 실행을 권장합니다.
 
-#### 2-1. 데이터베이스 및 Redis 실행 (Docker)
+##### 3-1. 데이터베이스 및 Redis 실행 (Docker)
 ```bash
 # 데이터베이스와 Redis만 Docker로 실행
 docker-compose up -d postgres redis minio
@@ -120,7 +61,7 @@ docker-compose up -d postgres redis minio
 docker-compose exec postgres psql -U postgres -d ragbot -c "CREATE EXTENSION IF NOT EXISTS vector;"
 ```
 
-#### 2-2. 백엔드 로컬 실행
+##### 3-2. 백엔드 로컬 실행
 ```bash
 # 백엔드 디렉토리로 이동
 cd backend
@@ -142,7 +83,7 @@ cp .env.example .env
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-#### 2-3. Celery Worker 로컬 실행
+##### 3-3. Celery Worker 로컬 실행
 ```bash
 # 백엔드 디렉토리에서 (가상환경 활성화 상태)
 celery -A app.celery worker --loglevel=info
@@ -154,7 +95,7 @@ celery -A app.celery beat --loglevel=info
 celery -A app.celery flower --port=5555
 ```
 
-#### 2-4. 프론트엔드 로컬 실행
+##### 3-4. 프론트엔드 로컬 실행
 ```bash
 # 프론트엔드 디렉토리로 이동
 cd frontend
@@ -166,19 +107,96 @@ npm install
 npm run dev
 ```
 
-### 3. 서비스 접속
+#### 4. 서비스 접속
 - **웹 애플리케이션**: http://localhost:3000
 - **백엔드 API**: http://localhost:8000/docs
+- **백엔드 Health Check** : http://localhost:8000/health
 - **Celery Flower**: http://localhost:5555
 - **MinIO Console**: http://localhost:9001
 
-### 성능 비교
-- **Docker 실행**: 개발 환경에서 느림, 파일 시스템 공유 오버헤드
-- **로컬 실행**: 빠른 응답속도, 실시간 코드 변경 반영, 디버깅 용이
 
-## 🏗 시스템 아키텍처
 
-### 전체 아키텍처 다이어그램
+
+## 3. 주요 기술
+#### 선택 기준
+1. AI를 활용한 빠른 프로토타입 개발을 위해 참고할 데이터가 많은 스택
+2. AI API와의 높은 호환성을 보이는 스택
+3. 주어진 태스크에서 쓸 수 있는 충분한 라이브러리를 확보하고 마찬가지로 데이터가 많은 스택
+4. 한국어 지원이 가능한 스택
+5. 확장 가능성을 염두에 두고 프로토타이핑 해볼 수 있는 저비용, 혹은 무비용의 스택
+
+#### 선택한 스택
+##### Frontend
+- **Next.js 15.5.2** + **TypeScript**
+  - **선택 이유**: 
+    - TypeScript로 타입 안정성 확보
+    - React 18의 최신 기능 활용 (Concurrent Features, Suspense)
+    - API Routes를 통한 백엔드 프록시 설정
+
+- **Tailwind CSS**
+  - **선택 이유**: 
+    - 유틸리티 퍼스트 CSS 프레임워크로 빠른 스타일링
+    - 반응형 디자인 쉬운 구현
+    - 번들 크기 최적화 -> 불필요한 최적화 업무 최소화(사용하지 않는 CSS 자동 제거)
+
+- **Lucide React**
+  - **선택 이유**: 
+    - 경량화된 아이콘 라이브러리
+    - 일관되고 빠른, 임시적 디자인 시스템 구축
+
+### Backend
+- **FastAPI** + **Python 3.11**
+  - **선택 이유**: 
+    - 비동기 웹 프레임워크
+    - 자동 OpenAPI 문서 생성
+    - Pydantic을 통한 데이터 검증
+    - WebSocket 지원으로 실시간 기능 구현
+
+- **PostgreSQL 16** + **pgvector**
+  - **선택 이유**: 
+    - 벡터 데이터베이스 기능 내장 (pgvector extension)
+    - 사용 경험이 있는 스택
+    - 보편적인 선택으로 참고할 데이터 다량 존재
+
+- **Redis**
+  - **선택 이유**: 
+    - Celery 메시지 브로커로 사용
+    - 세션 및 캐시 스토리지
+    - 고성능 인메모리 데이터베이스
+
+- **MinIO**
+  - **선택 이유**: 
+    - S3 호환 오브젝트 스토리지
+    - 대용량 파일의 "원본" 저장 및 관리
+
+### AI/ML 모델
+- **SentenceTransformers** (paraphrase-multilingual-MiniLM-L12-v2)
+  - **선택 이유**: 
+    - 다국어 지원 (한국어 포함)
+
+- **Google Gemma 3 12B** (via OpenRouter)
+  - **선택 이유**: 
+    - 한국어 성능 준수
+    - openRouter 서비스와 연계하여 모델 변경의 확장성 확보
+    - API 기반으로 인프라 부담 최소화
+    - 무료 티어 지원
+
+- **Tesseract OCR**
+  - **선택 이유**: 
+    - 오픈소스 OCR 엔진
+    - 다양한 언어 지원 (한국어 + 영어)
+
+### 비동기 작업 처리
+- **Celery** + **Flower**
+  - **선택 이유**: 
+    - 문서 처리 작업의 비동기 처리
+    - 작업 큐 모니터링 및 관리 용이
+    - 확장 가능한 워커 아키텍처
+
+
+## 4. 시스템 아키텍처
+
+#### 전체 아키텍처 다이어그램
 
 ```mermaid
 graph TB
@@ -223,7 +241,7 @@ graph TB
     CB --> RD
 ```
 
-### 데이터 플로우
+#### 데이터 플로우
 
 ```mermaid
 sequenceDiagram
@@ -258,7 +276,7 @@ sequenceDiagram
     A->>F: 답변 반환
 ```
 
-### 문서 처리 파이프라인
+#### 문서 처리 파이프라인
 
 ```mermaid
 graph LR
@@ -288,46 +306,19 @@ graph LR
     end
 ```
 
-### 주요 컴포넌트 설명
+## 5. 개발 과정
+- 총 소요 시간 : 27시간
+- 총 소요 일수 : 4일
+1. 과제 기획, 태스크 구체화
+2. 구체화된 태스크 문서 작성 및 AI Agent에 주입
+3. 태스크의 선후관계 및 우선순위 정의 후 각 단계 수행 
+    - 단계 수행 중 처음 써보는 스택에 대해서는 학습 문서 작성
+    - 사전 정의한 태스크 문서 최신화로 진척도 지속 추적
+4. 프로토타입 빌드 
 
-#### 1. **문서 업로드 및 저장**
-- 사용자가 업로드한 파일을 MinIO에 안전하게 저장
-- PostgreSQL에 문서 메타데이터 기록 (상태: processing)
 
-#### 2. **비동기 문서 처리**
-- Celery Worker가 백그라운드에서 문서 처리 작업 수행
-- 파일 타입에 따른 적절한 텍스트 추출 방법 선택
+## 6. 과제 진행 중 어려웠던 점과 해결 과정
 
-#### 3. **텍스트 추출 및 청킹**
-- **PDF/DOCX**: PyMuPDF, python-docx 라이브러리 사용
-- **Excel/CSV**: pandas 라이브러리로 구조화된 데이터 처리
-- **이미지**: Tesseract OCR로 텍스트 인식
-- 추출된 텍스트를 적절한 크기로 청킹
+## 7. RAG 아키텍처의 정확도 개선을 위한 아이디에이션
 
-#### 4. **임베딩 및 벡터 저장**
-- SentenceTransformers로 각 청크의 벡터 임베딩 생성
-- pgvector를 통해 PostgreSQL에 벡터 저장
-- HNSW 인덱스를 통한 고속 유사도 검색
-
-#### 5. **질의응답 시스템**
-- 사용자 질문을 벡터로 변환
-- pgvector의 코사인 유사도를 통한 관련 문서 검색
-- 검색된 컨텍스트와 함께 LLM에 답변 요청
-
-## 📋 API 엔드포인트
-
-### 문서 관리
-- `GET /api/v1/documents` - 문서 목록 조회
-- `POST /api/v1/documents/upload` - 문서 업로드
-- `GET /api/v1/documents/{id}/download` - 문서 다운로드
-- `GET /api/v1/documents/{id}/chunks` - 문서 청크 조회
-
-### 검색 및 챗봇
-- `POST /api/v1/search` - 문서 검색
-- `POST /api/v1/chat` - 챗봇 대화
-- `GET /api/v1/chat/sessions` - 채팅 세션 관리
-
-### 상태 확인
-- `GET /health` - 서비스 헬스체크
-- `GET /api/v1/upload-status/{session_id}` - 업로드 상태 확인
-
+### *과제를 마치며,*

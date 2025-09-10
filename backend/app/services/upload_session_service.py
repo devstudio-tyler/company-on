@@ -102,7 +102,9 @@ class UploadSessionService:
         status: UploadStatus,
         uploaded_size: Optional[int] = None,
         document_id: Optional[int] = None,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
+        failure_type: Optional[str] = None,
+        retryable: Optional[bool] = None
     ) -> bool:
         """
         업로드 상태 업데이트
@@ -113,6 +115,8 @@ class UploadSessionService:
             uploaded_size: 업로드된 크기
             document_id: 연결된 문서 ID
             error_message: 에러 메시지
+            failure_type: 실패 유형
+            retryable: 재처리 가능 여부
             
         Returns:
             bool: 업데이트 성공 여부
@@ -132,6 +136,12 @@ class UploadSessionService:
         
         if error_message is not None:
             session.error_message = error_message
+        
+        if failure_type is not None:
+            session.failure_type = failure_type
+        
+        if retryable is not None:
+            session.retryable = retryable
         
         self.db.commit()
         logger.info(f"Upload session status updated: {upload_id} -> {status}")
@@ -188,7 +198,8 @@ class UploadSessionService:
     def fail_upload(
         self,
         upload_id: str,
-        error_message: str
+        error_message: str,
+        failure_type: str = "upload_failed"
     ) -> bool:
         """
         업로드 실패 처리
@@ -196,14 +207,20 @@ class UploadSessionService:
         Args:
             upload_id: 업로드 ID
             error_message: 에러 메시지
+            failure_type: 실패 유형 (upload_failed, processing_failed)
             
         Returns:
             bool: 실패 처리 성공 여부
         """
+        # 업로드 실패는 재처리 불가능
+        retryable = failure_type != "upload_failed"
+        
         return self.update_upload_status(
             upload_id=upload_id,
             status=UploadStatus.FAILED,
-            error_message=error_message
+            error_message=error_message,
+            failure_type=failure_type,
+            retryable=retryable
         )
     
     def delete_upload_session(self, upload_id: str) -> bool:

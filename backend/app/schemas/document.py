@@ -14,6 +14,12 @@ class DocumentStatus(str, Enum):
     FAILED = "failed"
 
 
+class FailureType(str, Enum):
+    """실패 유형"""
+    UPLOAD_FAILED = "upload_failed"         # 업로드 실패 (재처리 불가능)
+    PROCESSING_FAILED = "processing_failed" # 프로세싱 실패 (재처리 가능)
+
+
 class DocumentUploadInitRequest(BaseModel):
     """문서 업로드 시작 요청"""
     filename: str = Field(..., min_length=1, max_length=255, description="파일명")

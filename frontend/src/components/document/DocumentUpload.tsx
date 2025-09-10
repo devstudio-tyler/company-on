@@ -23,7 +23,7 @@ const DocumentUpload = memo(function DocumentUpload({
     onUpload,
     onRemove,
     maxFiles = 10,
-    acceptedTypes = ['.pdf', '.docx', '.txt'],
+    acceptedTypes = ['.pdf', '.docx', '.xlsx', '.csv', '.png', '.jpg', '.jpeg'],
     maxSize = 50
 }: DocumentUploadProps) {
     const [isDragOver, setIsDragOver] = useState(false);
@@ -110,6 +110,15 @@ const DocumentUpload = memo(function DocumentUpload({
             case 'docx':
             case 'doc':
                 return '📝';
+            case 'xlsx':
+            case 'xls':
+                return '📊';
+            case 'csv':
+                return '📈';
+            case 'png':
+            case 'jpg':
+            case 'jpeg':
+                return '🖼️';
             case 'txt':
                 return '📄';
             default:

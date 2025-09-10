@@ -18,21 +18,23 @@ import {
 import { useState } from 'react';
 
 export interface Source {
-  index: number;
+  index: string;
   title: string;
   filename: string;
-  score: number;
+  score: string;
   download_url?: string;
   preview_url?: string;
   content_preview: string;
-  document_id: number;
-  chunk_index: number;
+  document_id: string;
+  chunk_index: string;
   chunk_type?: string;
   metadata?: Record<string, any>;
+  is_image?: boolean;
+  image_url?: string;
 }
 
 interface DocumentSourceCardProps {
-  documentId: number;
+  documentId: string;
   title: string;
   filename: string;
   chunks: Source[];
@@ -57,12 +59,13 @@ function DocumentSourceCard({ documentId, title, filename, chunks }: DocumentSou
   const renderChunkPreview = (chunk: Source) => {
     const ext = filename.toLowerCase().split('.').pop();
 
-    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '')) {
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '') || chunk.is_image) {
       // 이미지인 경우 원본 이미지 표시
+      const imageUrl = chunk.image_url || chunk.preview_url || `/api/v1/documents/${documentId}/download`;
       return (
         <div className="mt-2">
           <img
-            src={chunk.preview_url || `/api/v1/documents/${documentId}/preview`}
+            src={imageUrl}
             alt={title}
             className="max-w-full h-auto max-h-48 rounded-lg border border-gray-200 shadow-sm"
             onError={(e) => {
@@ -150,6 +153,11 @@ function DocumentSourceCard({ documentId, title, filename, chunks }: DocumentSou
       {/* 이미지 파일인 경우 바로 이미지 표시 */}
       {isImageFile() && chunks.length > 0 && (
         <div className="mt-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs text-gray-500">
+              유사도: {(parseFloat(chunks[0].score) * 100).toFixed(1)}%
+            </span>
+          </div>
           {renderChunkPreview(chunks[0])}
         </div>
       )}
@@ -161,7 +169,7 @@ function DocumentSourceCard({ documentId, title, filename, chunks }: DocumentSou
             <div key={chunk.index} className="border-l-2 border-gray-200 pl-3">
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs text-gray-500">
-                  청크 {chunk.chunk_index + 1} • 유사도: {(chunk.score * 100).toFixed(1)}%
+                  청크 {parseInt(chunk.chunk_index) + 1} • 유사도: {(parseFloat(chunk.score) * 100).toFixed(1)}%
                 </span>
               </div>
               {renderChunkPreview(chunk)}
@@ -223,9 +231,9 @@ function DocumentSourceCard({ documentId, title, filename, chunks }: DocumentSou
             {!isImageFile() && (
               <div className="mt-4 space-y-2">
                 {chunks.map((chunk, index) => (
-                  <div key={chunk.index} className="border border-gray-200 rounded p-3">
+                  <div key={chunk.index ?? index} className="border border-gray-200 rounded p-3">
                     <div className="text-xs text-gray-500 mb-2">
-                      청크 {chunk.chunk_index + 1} • 유사도: {(chunk.score * 100).toFixed(1)}%
+                      청크 {Number(chunk.chunk_index) + 1} • 유사도: {typeof chunk.score === 'number' ? (chunk.score * 100).toFixed(1) : 'N/A'}%
                     </div>
                     <div className="text-sm text-gray-700">
                       {chunk.content_preview}
@@ -329,11 +337,11 @@ export default function ChatMessage({
                   }
                   acc[key].chunks.push(source);
                   return acc;
-                }, {} as Record<number, { title: string; filename: string; chunks: Source[] }>)
+                }, {} as Record<string, { title: string; filename: string; chunks: Source[] }>)
               ).map(([docId, docInfo]) => (
                 <DocumentSourceCard
                   key={docId}
-                  documentId={parseInt(docId)}
+                  documentId={docId}
                   title={docInfo.title}
                   filename={docInfo.filename}
                   chunks={docInfo.chunks}

@@ -17,6 +17,12 @@ class UploadStatus(str, Enum):
     FAILED = "failed"      # 실패
 
 
+class FailureType(str, Enum):
+    """실패 유형"""
+    UPLOAD_FAILED = "upload_failed"         # 업로드 실패 (재처리 불가능)
+    PROCESSING_FAILED = "processing_failed" # 프로세싱 실패 (재처리 가능)
+
+
 class UploadSessionResponse(BaseModel):
     """업로드 세션 응답"""
     id: str

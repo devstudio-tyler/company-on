@@ -167,7 +167,7 @@ const GlobalDragDrop = memo(function GlobalDragDrop({
                             파일을 여기에 놓으세요
                         </h3>
                         <p className="text-gray-600">
-                            PDF, DOCX, TXT 파일을 업로드할 수 있습니다
+                            PDF, DOCX, XLSX, CSV, PNG, JPG 파일을 업로드할 수 있습니다
                         </p>
                         <p className="text-sm text-gray-400 mt-2">
                             클릭하면 닫힙니다

@@ -28,6 +28,8 @@ interface Document {
     error_message?: string;
     chunk_count?: number;
     embedding_count?: number;
+    failure_type?: 'upload_failed' | 'processing_failed';
+    retryable?: boolean;
 }
 
 interface LayoutProps {

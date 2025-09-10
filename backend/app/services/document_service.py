@@ -113,13 +113,23 @@ class DocumentService:
         
         return documents, total
     
-    def update_document_status(self, document_id: int, status: DocumentStatus) -> bool:
+    def update_document_status(
+        self, 
+        document_id: int, 
+        status: DocumentStatus,
+        error_message: Optional[str] = None,
+        failure_type: Optional[str] = None,
+        retryable: Optional[bool] = None
+    ) -> bool:
         """
         문서 상태 업데이트
         
         Args:
             document_id: 문서 ID
             status: 새로운 상태
+            error_message: 에러 메시지
+            failure_type: 실패 유형
+            retryable: 재처리 가능 여부
             
         Returns:
             bool: 업데이트 성공 여부
@@ -131,9 +141,46 @@ class DocumentService:
         document.status = status
         document.updated_at = datetime.utcnow()
         
+        if error_message is not None:
+            document.error_message = error_message
+        
+        if failure_type is not None:
+            document.failure_type = failure_type
+        
+        if retryable is not None:
+            document.retryable = retryable
+        
         self.db.commit()
         logger.info(f"Document status updated: {document_id} -> {status}")
         return True
+    
+    def fail_document(
+        self,
+        document_id: int,
+        error_message: str,
+        failure_type: str = "processing_failed"
+    ) -> bool:
+        """
+        문서 처리 실패 처리
+        
+        Args:
+            document_id: 문서 ID
+            error_message: 에러 메시지
+            failure_type: 실패 유형 (upload_failed, processing_failed)
+            
+        Returns:
+            bool: 실패 처리 성공 여부
+        """
+        # 프로세싱 실패는 재처리 가능
+        retryable = failure_type != "upload_failed"
+        
+        return self.update_document_status(
+            document_id=document_id,
+            status=DocumentStatus.FAILED,
+            error_message=error_message,
+            failure_type=failure_type,
+            retryable=retryable
+        )
     
     def update_document_metadata(self, document_id: int, metadata: Dict[str, Any]) -> bool:
         """

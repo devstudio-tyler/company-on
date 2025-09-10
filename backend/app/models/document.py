@@ -23,6 +23,8 @@ class Document(Base):
     content_type = Column(String(100), nullable=False)
     status = Column(String(20), default='processing')  # 'processing'|'completed'|'failed'
     error_message = Column(Text, nullable=True)  # 처리 실패 시 오류 메시지
+    failure_type = Column(String(20), nullable=True)  # upload_failed, processing_failed
+    retryable = Column(Boolean, default=True, nullable=False)  # 재처리 가능 여부
     document_metadata = Column(JSONB, nullable=True)  # JSON 형태로 저장
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

@@ -60,7 +60,8 @@ class SearchService:
         query: str, 
         limit: int = 10,
         alpha: float = 0.7,  # Dense 검색 가중치
-        beta: float = 0.3    # BM25 검색 가중치
+        beta: float = 0.3,   # BM25 검색 가중치
+        threshold: float = 0.6  # 유사도 임계값 (50-70% 범위)
     ) -> List[Dict[str, Any]]:
         """
         하이브리드 검색 수행 (BM25 + Dense)
@@ -70,6 +71,7 @@ class SearchService:
             limit: 반환할 결과 수
             alpha: Dense 검색 가중치 (0.0 ~ 1.0)
             beta: BM25 검색 가중치 (0.0 ~ 1.0)
+            threshold: 유사도 임계값 (0.0 ~ 1.0)
             
         Returns:
             검색 결과 리스트
@@ -80,18 +82,26 @@ class SearchService:
             logger.info(f"원본 쿼리: '{query}' -> 처리된 쿼리: '{processed_query}'")
             
             # 1. BM25 검색 수행
-            bm25_results = self._bm25_search(processed_query, limit * 2)  # 더 많은 결과를 가져와서 후보 확보
+            bm25_results = self._bm25_search(processed_query, limit * 3)  # 더 많은 결과를 가져와서 후보 확보
             
             # 2. Dense 검색 수행 (원본 쿼리 사용 - 의미적 유사성을 위해)
-            dense_results = self._dense_search(query, limit * 2)
+            dense_results = self._dense_search(query, limit * 3)
             
             # 3. 결과 통합 및 점수 계산
             combined_results = self._combine_results(
                 bm25_results, dense_results, alpha, beta
             )
             
-            # 4. 상위 결과 반환
-            return combined_results[:limit]
+            # 4. 임계값 필터링 적용
+            filtered_results = [
+                result for result in combined_results 
+                if result["combined_score"] >= threshold
+            ]
+            
+            logger.info(f"임계값 {threshold} 필터링 후 결과 수: {len(filtered_results)}/{len(combined_results)}")
+            
+            # 5. 상위 결과 반환 (최대 limit개)
+            return filtered_results[:limit]
             
         except Exception as e:
             logger.error(f"하이브리드 검색 실패: {str(e)}")

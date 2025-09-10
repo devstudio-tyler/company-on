@@ -16,6 +16,17 @@
 
 ---
 
+## 🆕 최근 업데이트 (2025-09-10)
+- 채팅 SSE `complete` 이벤트에 `session_id` 포함 → 프론트에서 새 세션 자동 선택
+- 사이드바 세션 실시간 갱신(`sessionCreated` 수신 시 재조회) 및 자동 선택 반영
+- 세션 메시지 로딩 UI(스피너) 추가
+- ChatMessage에서 문서 카드 클릭 시 `DocumentPreviewModal` 연동, 이미지 미리보기 개선
+- DB: `chat_messages`에 `sources/usage/model` 추가, 조회/저장 연동
+- 문서: `docs/api/api.md` 채팅 API 섹션 보강, `docs/manuals/llm-migration.md` 신설,
+  `docs/studies/redis-explanation.md`, `docs/studies/docker-explanation.md` 추가
+
+---
+
 ## 🏗️ 1. 인프라 및 환경 설정 (1일)
 
 ### 1.1 개발 환경 구축

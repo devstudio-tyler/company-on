@@ -32,6 +32,14 @@ Company-on 프로젝트 개발 과정에서 학습한 기술 개념 및 자료�
   - **문제 해결**: 인증, 네트워크, 권한 문제 진단 및 해결
   - **성능 최적화**: 버킷 정책, 파일 구조, 보안 강화
 
+### [redis-explanation.md](./redis-explanation.md)
+- **목적**: Redis 핵심 개념과 운영 팁 정리
+- **내용**: 브로커/캐시, TTL/eviction, Pub/Sub, 운영/문제 해결
+
+### [docker-explanation.md](./docker-explanation.md)
+- **목적**: Docker 실무 팁과 최적화
+- **내용**: 네트워크/볼륨, 리소스 제한, 로그/헬스체크, 디버깅
+
 ## 🎯 학습 목표
 
 ### 데이터베이스 최적화

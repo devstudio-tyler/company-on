@@ -13,14 +13,14 @@ Company-on 프로젝트의 확장 기능 및 고급 사용법 가이드입니다
   - 파티셔닝 적용 시점 및 고려사항
   - 성능 모니터링 및 최적화
 
-### [local-model-migration.md](./local-model-migration.md)
-- **목적**: OpenAI API에서 로컬 모델로 전환하는 방법
+### [llm-migration.md](./llm-migration.md)
+- **목적**: LLM 프로바이더(OpenRouter ↔ Vertex 등) 또는 로컬 모델 간 전환 방법
 - **내용**:
-  - Ollama 기반 로컬 모델 설정
-  - 보안 강화 및 비용 절약 방안
-  - Docker 환경 구성
-  - 성능 최적화 및 모니터링
-  - 마이그레이션 체크리스트
+  - OpenRouter(Gemma 3 12B) ↔ Vertex 전환 절차
+  - 환경변수 및 인증 키 관리
+  - 프록시/네트워크 설정과 CORS 주의사항
+  - 성능/비용/품질 트레이드오프
+  - 점진적 전환(카나리) 전략과 롤백 계획
 
 ## 🚀 확장 전략
 

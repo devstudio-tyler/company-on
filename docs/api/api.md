@@ -765,3 +765,99 @@ curl "http://localhost:8000/api/v1/llm/ping"
 - [FastAPI 공식 문서](https://fastapi.tiangolo.com/)
 - [Server-Sent Events (SSE) 가이드](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
 - [MinIO 클라이언트 가이드](https://docs.min.io/docs/minio-client-quickstart-guide.html)
+
+---
+
+## 💬 채팅 API (Sessions & Messages)
+
+### 1. 세션 목록 조회
+**GET** `/chat/sessions?page=1&size=20`
+
+헤더: `X-Client-ID: <uuid>`
+
+응답 예시:
+```json
+{
+  "sessions": [
+    {
+      "id": "218",
+      "title": "2025-09-10의 새 채팅",
+      "description": "",
+      "tags": [],
+      "is_pinned": false,
+      "client_id": "550e8400-e29b-41d4-a716-446655440000",
+      "message_count": 2,
+      "created_at": "2025-09-10T05:53:02Z",
+      "updated_at": "2025-09-10T05:55:02Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "size": 20
+}
+```
+
+### 2. 세션 생성
+**POST** `/chat/sessions`
+
+헤더: `X-Client-ID: <uuid>`
+
+본문:
+```json
+{ "title": "새 대화" }
+```
+
+응답:
+```json
+{ "id": "219", "title": "새 대화", "created_at": "..." }
+```
+
+### 3. 세션 수정 (제목/설명/태그/핀)
+**PUT** `/chat/sessions/{session_id}`  (헤더: `X-Client-ID`)
+
+본문 (예):
+```json
+{ "title": "회의 메모 요약", "description": "주간 회의", "tags": ["회의"], "is_pinned": true }
+```
+
+### 4. 세션별 메시지 조회
+**GET** `/chat/sessions/{session_id}/messages?page=1&size=50`  (헤더: `X-Client-ID`)
+
+응답(요지):
+```json
+{
+  "messages": [
+    { "id": "1001", "content": "안녕?", "is_user": true, "created_at": "..." },
+    { "id": "1002", "content": "안녕하세요!", "is_user": false, "sources": [], "created_at": "..." }
+  ],
+  "total": 2, "page": 1, "size": 50
+}
+```
+
+### 5. 메시지 생성 (동기)
+**POST** `/chat/messages`  (헤더: `X-Client-ID`)
+
+본문:
+```json
+{ "client_id": "<uuid>", "session_id": "219", "content": "요약해줘" }
+```
+
+응답(요지):
+```json
+{ "message_id": "1003", "content": "요약입니다...", "sources": [], "session_id": "219" }
+```
+
+### 6. 메시지 생성 (SSE 스트리밍)
+**POST** `/chat/messages/stream`  (헤더: `X-Client-ID`, Accept: `text/event-stream`)
+
+스트림 예시:
+```
+data: {"type":"sources","sources":[ ... ]}
+data: {"type":"chunk","content":"첫 토큰"}
+data: {"type":"chunk","content":" 다음 토큰"}
+data: {"type":"complete","message_id":"1004","session_id":"219"}
+```
+
+비고:
+- `complete` 이벤트에 `session_id`가 포함되어 프론트가 새 세션 자동 선택 가능.
+

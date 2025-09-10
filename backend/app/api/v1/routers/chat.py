@@ -66,6 +66,9 @@ async def create_chat_message(
             session_id=session.id,
             role='user',
             content=request.content,
+            sources=None,
+            usage=None,
+            model=None,
             created_at=datetime.utcnow()
         )
         db.add(user_message)
@@ -88,6 +91,9 @@ async def create_chat_message(
             session_id=session.id,
             role='assistant',
             content=rag_response.answer,
+            sources=rag_response.sources,
+            usage=rag_response.usage,
+            model=rag_response.model,
             created_at=datetime.utcnow()
         )
         db.add(ai_message)
@@ -163,6 +169,9 @@ async def create_chat_message_stream(
                     session_id=session.id,
                     role='user',
                     content=request.content,
+                    sources=None,  # 사용자 메시지는 sources 없음
+                    usage=None,
+                    model=None,
                     created_at=datetime.utcnow()
                 )
                 db.add(user_message)
@@ -171,6 +180,9 @@ async def create_chat_message_stream(
                     session_id=session.id,
                     role='assistant',
                     content=full_response,
+                    sources=sources if search_results else [],  # 검색된 sources 저장
+                    usage={},  # TODO: LLM usage 정보 추가
+                    model="google/gemma-3-12b-it:free",  # 사용된 모델명
                     created_at=datetime.utcnow()
                 )
                 db.add(ai_message)
@@ -179,8 +191,8 @@ async def create_chat_message_stream(
                 session.updated_at = datetime.utcnow()
                 db.commit()
                 
-                # 완료 신호
-                yield f"data: {json.dumps({'type': 'complete', 'message_id': str(ai_message.id)})}\n\n"
+                # 완료 신호 (session_id 포함하여 프론트가 새 세션을 인지/선택 가능)
+                yield f"data: {json.dumps({'type': 'complete', 'message_id': str(ai_message.id), 'session_id': str(session.id)})}\n\n"
                 
             except Exception as e:
                 logger.error(f"스트리밍 응답 생성 실패: {e}")

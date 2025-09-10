@@ -1,6 +1,6 @@
 'use client';
 
-import { updateSessionTitle } from '@/lib/api/sessions';
+import { getSessionMessages, updateSessionTitle, type ChatMessage } from '@/lib/api/sessions';
 import { getClientId } from '@/lib/utils';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ChatInput from './ChatInput';
@@ -54,10 +54,70 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
         };
     }, [eventSource]);
 
-    // sessionId prop이 변경될 때 currentSessionId 업데이트
+    // 세션 메시지를 ChatMessageData 형식으로 변환
+    const convertSessionMessagesToChatData = useCallback((messages: ChatMessage[]): ChatMessageData[] => {
+        return messages.map(msg => ({
+            id: `session-${msg.message_id}`, // 세션 메시지임을 명시하고 고유성 보장
+            content: msg.content,
+            isUser: msg.is_user,
+            timestamp: new Date(msg.created_at),
+            sources: msg.sources || []
+        }));
+    }, []);
+
+    // 세션 메시지 로드
+    const loadSessionMessages = useCallback(async (sessionId: string) => {
+        try {
+            setIsLoading(true);
+            console.log('📥 세션 메시지 로딩 시작:', sessionId);
+
+            const response = await getSessionMessages(sessionId);
+            const chatMessages = convertSessionMessagesToChatData(response.messages);
+
+            console.log('✅ 세션 메시지 로드 완료:', {
+                sessionId,
+                messageCount: chatMessages.length,
+                messages: chatMessages
+            });
+
+            setMessages(chatMessages);
+        } catch (error) {
+            console.error('❌ 세션 메시지 로드 실패:', error);
+            setMessages([]); // 실패 시 빈 배열
+        } finally {
+            setIsLoading(false);
+        }
+    }, [convertSessionMessagesToChatData]);
+
+    // sessionId prop이 변경될 때 currentSessionId 업데이트 및 메시지 로드
     useEffect(() => {
-        setCurrentSessionId(sessionId || null);
-    }, [sessionId]);
+        const newSessionId = sessionId || null;
+        setCurrentSessionId(newSessionId);
+
+        // 기존 스트리밍 취소
+        if (eventSource) {
+            console.log('🛑 기존 스트리밍 연결 취소 (세션 변경)');
+            eventSource.close();
+            setEventSource(null);
+        }
+
+        // 스트리밍 관련 상태 초기화
+        setIsSendingMessage(false);
+        streamingContentRef.current = '';
+        streamingMessageIdRef.current = null;
+        if (updateTimeoutRef.current) {
+            clearTimeout(updateTimeoutRef.current);
+            updateTimeoutRef.current = null;
+        }
+
+        // 새 세션이 선택된 경우 메시지 로드
+        if (newSessionId) {
+            loadSessionMessages(newSessionId);
+        } else {
+            // 세션이 없으면 메시지 초기화
+            setMessages([]);
+        }
+    }, [sessionId, eventSource, loadSessionMessages]);
 
     // 첫 메시지 기반으로 세션 제목 자동 생성
     const generateSessionTitle = useCallback((firstMessage: string): string => {
@@ -241,12 +301,14 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
 
                                     // 첫 번째 청크인 경우 "답변 생성 중" 메시지를 실제 내용으로 교체
                                     if (streamingContentRef.current === '') {
-                                        streamingContentRef.current = parsed.content;
+                                        // 첫 번째 청크에서 leading whitespace 제거
+                                        const trimmedContent = parsed.content.trimStart();
+                                        streamingContentRef.current = trimmedContent;
                                         // 첫 번째 청크는 즉시 업데이트
                                         setMessages(prev =>
                                             prev.map(msg =>
                                                 msg.id === aiMessageId
-                                                    ? { ...msg, content: parsed.content }
+                                                    ? { ...msg, content: trimmedContent }
                                                     : msg
                                             )
                                         );
@@ -276,11 +338,27 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
                                 } else if (parsed.type === 'complete') {
                                     console.log('🏁 스트리밍 완료 수신');
                                     console.log('📄 최종 내용:', streamingContentRef.current);
+                                    console.log('🆔 세션 정보:', {
+                                        현재세션: currentSessionId,
+                                        응답세션: parsed.session_id,
+                                        전체응답: parsed
+                                    });
 
                                     // 디바운싱 타이머 즉시 해제하고 최종 업데이트 실행
                                     if (updateTimeoutRef.current) {
                                         clearTimeout(updateTimeoutRef.current);
                                         updateTimeoutRef.current = null;
+                                    }
+
+                                    // 새 세션이 생성된 경우 세션 ID 업데이트
+                                    if (!currentSessionId && parsed.session_id) {
+                                        console.log('🆕 새 세션 생성됨:', parsed.session_id);
+                                        setCurrentSessionId(parsed.session_id);
+
+                                        // 세션 업데이트 이벤트 발생 (사이드바 갱신용)
+                                        window.dispatchEvent(new CustomEvent('sessionCreated', {
+                                            detail: { sessionId: parsed.session_id }
+                                        }));
                                     }
 
                                     // 최종 메시지 상태 업데이트 - content, isStreaming, message_id 모두 한 번에 처리
@@ -311,14 +389,19 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
                                     setIsSendingMessage(false);
 
                                     // 첫 메시지인 경우 응답 내용으로 세션 제목 업데이트
-                                    if (currentSessionId && messages.length === 1) {
-                                        const aiMessage = messages.find(msg => msg.id === aiMessageId);
-                                        if (aiMessage && aiMessage.content) {
-                                            const summary = aiMessage.content.length > 50
-                                                ? aiMessage.content.substring(0, 50) + '...'
-                                                : aiMessage.content;
-                                            updateSessionTitleFromMessage(currentSessionId, summary);
-                                        }
+                                    const sessionToUpdate = currentSessionId || parsed.session_id;
+                                    if (sessionToUpdate && messages.length <= 2) { // 사용자 메시지 + AI 메시지 = 2개
+                                        const summary = finalContent.length > 50
+                                            ? finalContent.substring(0, 50) + '...'
+                                            : finalContent;
+
+                                        console.log('📝 세션 제목 자동 업데이트:', {
+                                            sessionId: sessionToUpdate,
+                                            summary,
+                                            messageCount: messages.length
+                                        });
+
+                                        updateSessionTitleFromMessage(sessionToUpdate, summary);
                                     }
                                     return;
                                 } else if (parsed.type === 'error') {

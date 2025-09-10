@@ -16,6 +16,7 @@ import {
   User
 } from 'lucide-react';
 import { useState } from 'react';
+import DocumentPreviewModal from '../DocumentPreviewModal';
 
 export interface Source {
   index: string;
@@ -61,14 +62,20 @@ function DocumentSourceCard({ documentId, title, filename, chunks }: DocumentSou
 
     if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext || '') || chunk.is_image) {
       // 이미지인 경우 원본 이미지 표시
-      const imageUrl = chunk.image_url || chunk.preview_url || `/api/v1/documents/${documentId}/download`;
+      const imageUrl = chunk.image_url || chunk.download_url || `/api/v1/documents/${documentId}/download`;
+      console.log('🖼️ 이미지 렌더링:', { chunk, imageUrl, documentId });
+
       return (
         <div className="mt-2">
           <img
             src={imageUrl}
             alt={title}
             className="max-w-full h-auto max-h-48 rounded-lg border border-gray-200 shadow-sm"
+            onLoad={() => {
+              console.log('✅ 이미지 로드 성공:', imageUrl);
+            }}
             onError={(e) => {
+              console.error('❌ 이미지 로드 실패:', imageUrl);
               // 이미지 로드 실패 시 대체 UI 표시
               const target = e.target as HTMLImageElement;
               target.style.display = 'none';
@@ -81,7 +88,7 @@ function DocumentSourceCard({ documentId, title, filename, chunks }: DocumentSou
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
                       </svg>
                     </div>
-                    <span class="text-gray-600 text-sm">이미지 미리보기</span>
+                    <span class="text-gray-600 text-sm">이미지를 불러올 수 없습니다</span>
                   </div>
                 `;
               }
@@ -178,73 +185,13 @@ function DocumentSourceCard({ documentId, title, filename, chunks }: DocumentSou
         </div>
       )}
 
-      {/* 미리보기 모달 (간단한 구현) */}
-      {showPreview && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-2xl max-h-[80vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-medium text-gray-900">{title}</h3>
-              <button
-                onClick={() => setShowPreview(false)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                ✕
-              </button>
-            </div>
-            <div className="text-sm text-gray-600">
-              <p>문서 ID: {documentId}</p>
-              <p>파일명: {filename}</p>
-              {!isImageFile() && <p>참조된 청크 수: {chunks.length}개</p>}
-            </div>
-
-            {/* 이미지 파일인 경우 원본 이미지 표시 */}
-            {isImageFile() && chunks.length > 0 && (
-              <div className="mt-4">
-                <img
-                  src={chunks[0].preview_url || `/api/v1/documents/${documentId}/preview`}
-                  alt={title}
-                  className="max-w-full h-auto max-h-96 rounded-lg border border-gray-200 shadow-sm"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = 'none';
-                    const parent = target.parentElement;
-                    if (parent) {
-                      parent.innerHTML = `
-                        <div class="flex items-center justify-center p-8 bg-gray-50 rounded-lg">
-                          <div class="text-center">
-                            <div class="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                              <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                              </svg>
-                            </div>
-                            <p class="text-gray-600">이미지를 불러올 수 없습니다</p>
-                          </div>
-                        </div>
-                      `;
-                    }
-                  }}
-                />
-              </div>
-            )}
-
-            {/* 일반 파일인 경우 청크 정보 표시 */}
-            {!isImageFile() && (
-              <div className="mt-4 space-y-2">
-                {chunks.map((chunk, index) => (
-                  <div key={chunk.index ?? index} className="border border-gray-200 rounded p-3">
-                    <div className="text-xs text-gray-500 mb-2">
-                      청크 {Number(chunk.chunk_index) + 1} • 유사도: {typeof chunk.score === 'number' ? (chunk.score * 100).toFixed(1) : 'N/A'}%
-                    </div>
-                    <div className="text-sm text-gray-700">
-                      {chunk.content_preview}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* 문서 미리보기 모달 */}
+      <DocumentPreviewModal
+        isOpen={showPreview}
+        onClose={() => setShowPreview(false)}
+        documentId={documentId}
+        filename={filename}
+      />
     </div>
   );
 }

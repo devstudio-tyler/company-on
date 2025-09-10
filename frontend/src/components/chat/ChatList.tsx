@@ -28,6 +28,20 @@ export default function ChatList({ messages, isLoading = false, onFeedback }: Ch
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  // 로딩 상태 표시
+  if (isLoading && messages.length === 0) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-8">
+        <div className="text-center">
+          <div className="w-8 h-8 mx-auto mb-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+          <p className="text-gray-500">채팅 기록을 불러오는 중...</p>
+        </div>
+      </div>
+    );
+  }
+
   if (messages.length === 0 && !isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center p-8">

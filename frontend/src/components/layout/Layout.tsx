@@ -152,18 +152,16 @@ const Layout = memo(function Layout({ children, className = '' }: LayoutProps) {
             ));
         };
 
-        const handleSessionCreated = (event: CustomEvent) => {
-            const { session } = event.detail;
-            setSessions(prev => {
-                // 중복 세션 방지: 이미 존재하는 세션인지 확인
-                const existingSession = prev.find(s => s.id === session.id);
-                if (existingSession) {
-                    console.log('세션이 이미 존재함:', session.id);
-                    return prev;
-                }
-                console.log('새 세션 추가:', session);
-                return [session, ...prev];
-            });
+        const handleSessionCreated = async (event: CustomEvent) => {
+            const { sessionId } = event.detail;
+            console.log('🆕 새 세션 생성 이벤트 수신:', sessionId);
+
+            // 세션 목록을 다시 가져와서 UI 갱신 후 방금 생성된 세션을 선택
+            await fetchSessions();
+            setCurrentSessionId(sessionId);
+            // 사이드바를 세션 모드로 보이게 전환
+            setSidebarMode('session');
+            setSidebarOpen(true);
         };
 
         window.addEventListener('sessionUpdated', handleSessionUpdated as EventListener);

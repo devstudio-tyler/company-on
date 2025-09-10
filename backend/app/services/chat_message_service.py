@@ -93,7 +93,7 @@ class ChatMessageService:
             messages=message_responses,
             total=total,
             page=page,
-            limit=limit
+            size=limit
         )
     
     def get_chat_message(
@@ -196,9 +196,13 @@ class ChatMessageService:
         """ChatMessage 모델을 ChatMessageResponse로 변환"""
         
         return ChatMessageResponse(
-            id=message.id,
-            session_id=message.session_id,
+            message_id=str(message.id),
             content=message.content,
-            role=ChatMessageRole(message.role),
+            is_user=(message.role == 'user'),
+            session_id=str(message.session_id),
+            client_id="",  # 메시지 저장 시에는 client_id 정보가 없음
+            sources=message.sources or [],  # 데이터베이스에서 sources 읽기
+            usage=message.usage or {},    # 데이터베이스에서 usage 읽기
+            model=message.model or "",    # 데이터베이스에서 model 읽기
             created_at=message.created_at
         )

@@ -275,29 +275,38 @@ export default function ChatPage({ sessionId }: ChatPageProps) {
                                     );
                                 } else if (parsed.type === 'complete') {
                                     console.log('🏁 스트리밍 완료 수신');
+                                    console.log('📄 최종 내용:', streamingContentRef.current);
+
+                                    // 디바운싱 타이머 즉시 해제하고 최종 업데이트 실행
                                     if (updateTimeoutRef.current) {
                                         clearTimeout(updateTimeoutRef.current);
+                                        updateTimeoutRef.current = null;
                                     }
 
-                                    // 하나의 setState 안에서 최종 콘텐츠 반영과 ID 갱신을 동시에 처리
+                                    // 최종 메시지 상태 업데이트 - content, isStreaming, message_id 모두 한 번에 처리
+                                    const finalContent = streamingContentRef.current;
                                     setMessages(prev =>
                                         prev.map(msg => {
                                             if (msg.id !== aiMessageId) return msg;
-                                            const updated: ChatMessageData = {
+
+                                            console.log('🔄 메시지 업데이트:', {
+                                                기존내용: msg.content,
+                                                최종내용: finalContent,
+                                                메시지ID: parsed.message_id
+                                            });
+
+                                            return {
                                                 ...msg,
-                                                content: streamingContentRef.current,
+                                                id: parsed.message_id || msg.id,
+                                                content: finalContent,
                                                 isStreaming: false,
                                             };
-                                            if (parsed.message_id) {
-                                                (updated as any).id = parsed.message_id;
-                                            }
-                                            return updated;
                                         })
                                     );
 
-                                    // ref 초기화 (렌더 후)
-                                    streamingMessageIdRef.current = null;
+                                    // ref 초기화
                                     streamingContentRef.current = '';
+                                    streamingMessageIdRef.current = null;
 
                                     setIsSendingMessage(false);
 

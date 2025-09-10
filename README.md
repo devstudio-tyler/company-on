@@ -1,5 +1,5 @@
 # **COMPANY-ON**
-#### 사내 문서 지식 통합의 동반자
+#### *사내 문서 지식 통합의 동반자*
 
 ## 1. 프로젝트 개요
 분산된 사내 문서 및 사내 지식을 통합하여 불필요한 인적자원 소모를 감축하는 AI 챗봇 COMPANY-ON.
@@ -172,7 +172,9 @@ npm run dev
 ### AI/ML 모델
 - **SentenceTransformers** (paraphrase-multilingual-MiniLM-L12-v2)
   - **선택 이유**: 
+    - 임베딩에 사용
     - 다국어 지원 (한국어 포함)
+    - 비용 없음
 
 - **Google Gemma 3 12B** (via OpenRouter)
   - **선택 이유**: 
